@@ -208,6 +208,59 @@ def stats_transit_access():
     return _static["transit"]
 
 
+@app.get("/stats/buildings", summary="Building density and character (analysis 1)")
+def stats_buildings():
+    """Buildings, density, footprint coverage and median height for the City and the County,
+    from the 500 m hexagons (a hex counts toward the area holding its interior point)."""
+    if "buildings" not in _static:
+        rows = query("""
+            SELECT c.namelsad, count(*), sum(bldg_count), sum(bldg_count) / sum(area_km2),
+                   100 * sum(footprint_m2) / (sum(area_km2) * 1e6),
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY median_height_m)
+            FROM analysis.hex_buildings x
+            JOIN LATERAL (SELECT c.namelsad FROM core.counties c
+                          WHERE ST_Intersects(c.geom, ST_PointOnSurface(x.geom))
+                          ORDER BY c.namelsad LIMIT 1) c ON true
+            GROUP BY 1 ORDER BY 1""")
+        _static["buildings"] = {"areas": [
+            {"area": a, "hexes": h, "buildings": int(b), "buildings_per_km2": round(d),
+             "coverage_pct": round(cv, 1), "median_height_m": round(mh, 1)}
+            for a, h, b, d, cv, mh in rows]}
+    return _static["buildings"]
+
+
+@app.get("/stats/network", summary="Street network metrics and QC findings (analysis 4)")
+def stats_network():
+    """Study-wide street metrics plus counts of the network QC findings (the qc.net_* layers):
+    dead ends, near misses, crossings with no shared node, duplicated ways, islands and
+    one-way traps."""
+    if "network" not in _static:
+        (inter, dead, area, km), = query("""
+            SELECT sum(intersections), sum(dead_ends), sum(area_km2), sum(street_km)
+            FROM analysis.hex_network""")
+        (dead_ends, near, boundary), = query("""
+            SELECT count(*), count(*) FILTER (WHERE near_miss_m IS NOT NULL),
+                   count(*) FILTER (WHERE at_boundary) FROM qc.net_dead_ends""")
+        crossings = dict(query("SELECT kind, count(*) FROM qc.net_unnoded_crossings GROUP BY 1"))
+        (overlaps, overlap_m), = query(
+            "SELECT count(*), COALESCE(sum(overlap_m), 0) FROM qc.net_overlaps")
+        islands = {m: {"count": n, "km": round(l / 1000, 1)}
+                   for m, n, l in query("""SELECT mode, count(*), sum(length_m)
+                                           FROM qc.net_islands GROUP BY 1""")}
+        traps, = query("SELECT count(*) FROM qc.net_oneway_traps")[0]
+        _static["network"] = {
+            "metrics": {"intersections": int(inter), "dead_ends": int(dead),
+                        "intersections_per_km2": round(inter / area, 1),
+                        "dead_end_share_pct": round(100 * dead / (inter + dead), 1),
+                        "street_km": round(km), "street_km_per_km2": round(km / area, 1)},
+            "qc": {"dead_ends": dead_ends, "near_misses": near, "at_boundary": boundary,
+                   "unnoded_crossings": sum(crossings.values()),
+                   "unnoded_crossings_by_kind": crossings,
+                   "overlaps": overlaps, "overlap_m": round(overlap_m),
+                   "islands": islands, "oneway_traps": traps}}
+    return _static["network"]
+
+
 @app.get("/health", summary="Is the database reachable?")
 def health():
     try:

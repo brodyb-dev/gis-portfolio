@@ -141,6 +141,15 @@ def main() -> int:
                              f"{d['network']['pct']}% (+{d['pct_overstated']}%)"
                              for d in transit["distances"]), ok))
 
+    bldg = requests.get(f"{API}/stats/buildings", timeout=60).json()["areas"]
+    net = requests.get(f"{API}/stats/network", timeout=60).json()
+    checks.append(("/stats/buildings and /stats/network return the City and County metrics "
+                   "and QC counts",
+                   f"{sum(a['buildings'] for a in bldg):,} buildings in {len(bldg)} areas; "
+                   f"{net['metrics']['intersections']:,} intersections; "
+                   f"{net['qc']['near_misses']:,} near misses",
+                   len(bldg) == 2 and net["metrics"]["intersections"] > 0))
+
     iso_rows, walk_times, slow_walk = [], [], []
     for name, lon, lat in ISO_POINTS:
         for mode in ("walk", "drive"):
@@ -217,6 +226,9 @@ def main() -> int:
           "| `GET /stats/flood` | Buildings, road miles and transit exposed per FEMA zone |",
           "| `GET /stats/transit-access` | Straight-line vs. network access at 1/4 and 1/2 mile, "
           "and the median detour ratio |",
+          "| `GET /stats/buildings` | Buildings, density, coverage and median height for City and "
+          "County |",
+          "| `GET /stats/network` | Street network metrics and network QC finding counts |",
           "| `GET /health` | `{\"status\": \"ok\"}` when the database answers |",
           "| `GET /docs` | Interactive API docs (FastAPI) |", ""]
     out = REPO / "docs" / "serving-check.md"

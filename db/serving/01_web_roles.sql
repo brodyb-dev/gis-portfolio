@@ -25,9 +25,12 @@ GRANT SELECT ON
 TO tiles_reader;
 
 -- API ----------------------------------------------------------------------------------------
-GRANT USAGE ON SCHEMA core, analysis, net TO api_reader;
+GRANT USAGE ON SCHEMA core, analysis, net, qc TO api_reader;
 GRANT SELECT ON net.edges, net.vertices, core.study_boundary,
-    analysis.transit_access_summary, analysis.flood_summary, analysis.building_transit
+    analysis.transit_access_summary, analysis.flood_summary, analysis.building_transit,
+    analysis.hex_network, analysis.hex_buildings, core.counties,
+    qc.net_dead_ends, qc.net_unnoded_crossings, qc.net_overlaps, qc.net_islands,
+    qc.net_oneway_traps
 TO api_reader;
 GRANT EXECUTE ON FUNCTION analysis.isochrones(float8, float8, text, int[]) TO api_reader;
 

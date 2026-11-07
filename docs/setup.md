@@ -13,6 +13,7 @@ Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
 | osm2pgrouting | bundled with PostGIS | `C:\Program Files\PostgreSQL\18\bin` |
 | osm2pgsql | 2.3.1 (Libosmium 2.23.1, PROJ 9.8.1, Lua 5.5.0) | `A:\gis-tools\osm2pgsql\osm2pgsql-bin\` |
 | pg_tileserv | "latest" snapshot build, dated 2025-12-11 (it reports no version number) | `A:\gis-tools\pg_tileserv\` |
+| Website packages | React 18.3.1, React Router 6.30.1, MapLibre GL JS 5.6.0, Vite 6.3.5 (Node.js 20.12.2, npm 10.5.0) | `web\node_modules\` |
 | Python packages | fastapi 0.162.0, psycopg 3.3.6, psycopg-pool 3.3.3, uvicorn 0.54.0, python-dotenv 1.2.4, requests 2.34.2, overturemaps 1.0.2, pyarrow 26.0.0 | `.venv\` |
 
 ## Steps
@@ -41,10 +42,14 @@ Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
    ```powershell
    .venv\Scripts\python etl\run_all.py
    ```
-
-8. **Start the services:** this checks PostgreSQL, refreshes the read-only web roles, then starts
-   pg_tileserv (map layers, http://localhost:7800) and the API (http://localhost:8000, docs at `/docs`).
-   Once the website exists (M6) it starts that too. Press Ctrl+C to stop everything; logs are in `logs\`.
+8. **Website packages:** needs Node.js 20 or newer (confirmed with 20.12.2; Vite is pinned to 6.x because Vite 7 needs Node 20.19+).
+   ```powershell
+   cd web
+   npm install
+   ```
+9. **Start everything:** this checks PostgreSQL, refreshes the read-only web roles, then starts
+   pg_tileserv (map layers, http://localhost:7800), the API (http://localhost:8000, docs at `/docs`) and the
+   website (**http://localhost:5173**). Press Ctrl+C to stop everything; logs are in `logs\`. Add `-NoWeb` to skip the website.
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\start.ps1
    ```
