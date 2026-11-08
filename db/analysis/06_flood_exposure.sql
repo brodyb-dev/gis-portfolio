@@ -5,8 +5,11 @@
 -- levee, reported separately.
 --   Buildings  a footprint touching a zone counts as exposed. A building touching more than
 --              one class takes the highest-risk one.
---   Roads      drivable edges cut to the zones, in miles. Bridges are left out: they span the
---              floodplain (the river crossings sit over 100-yr polygons) but are elevated.
+--   Roads      street edges cut to the zones, in miles. "Streets" match analysis 4: drivable
+--              edges except highway=service (driveways, parking aisles, alleys), which made up
+--              half or more of the flooded mileage and would mostly count private pavement.
+--              Bridges are left out: they span the floodplain (the river crossings sit over
+--              100-yr polygons) but are elevated.
 --   Transit    stops inside a zone, and route miles inside a zone.
 
 DROP TABLE IF EXISTS analysis.flood_pieces CASCADE;
@@ -35,7 +38,7 @@ FROM (SELECT e.id AS edge_id, e.road_class, e.name, p.flood_class,
                  ::geometry(LineString, 26915) AS geom
       FROM net.edges e
       JOIN analysis.flood_pieces p ON ST_Intersects(e.geom, p.geom)
-      WHERE e.drivable AND NOT e.bridge) cut;
+      WHERE e.drivable AND e.highway <> 'service' AND NOT e.bridge) cut;
 CREATE INDEX ON analysis.flood_roads USING gist (geom);
 
 DROP TABLE IF EXISTS analysis.flood_stops CASCADE;

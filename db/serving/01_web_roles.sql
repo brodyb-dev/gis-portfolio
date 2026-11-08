@@ -10,7 +10,8 @@
 
 REVOKE ALL ON SCHEMA public FROM tiles_reader, api_reader;
 -- Start each run from no table access, so a layer dropped from the list below is unpublished.
-REVOKE ALL ON ALL TABLES IN SCHEMA core, analysis, net FROM tiles_reader, api_reader;
+-- (basemap is built by etl/10_context.py, so run that before this file.)
+REVOKE ALL ON ALL TABLES IN SCHEMA core, basemap, analysis, net FROM tiles_reader, api_reader;
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'qc') THEN
         REVOKE ALL ON ALL TABLES IN SCHEMA qc FROM tiles_reader, api_reader;
@@ -19,12 +20,14 @@ END $$;
 GRANT USAGE ON SCHEMA public TO tiles_reader, api_reader;  -- PostGIS and pgRouting live here
 
 -- Map layers ---------------------------------------------------------------------------------
-GRANT USAGE ON SCHEMA core, analysis, qc TO tiles_reader;
+GRANT USAGE ON SCHEMA core, basemap, analysis, qc TO tiles_reader;
 GRANT SELECT ON
     core.study_boundary, core.counties, core.buildings, core.roads, core.rail_lines,
     core.transit_stops, core.transit_routes, core.flood_zones, core.hydro_areas,
-    core.hydro_lines, core.hydro_context, core.parks, core.places, core.landmarks,
-    core.road_labels, core.river_labels,
+    core.hydro_lines,
+    -- Basemap reference layers (display only, may extend past the study boundary).
+    basemap.hydro_context, basemap.parks, basemap.places, basemap.landmarks,
+    basemap.road_labels, basemap.river_labels,
     analysis.hex_buildings, analysis.hex_network, analysis.hex_transit,
     analysis.building_transit, analysis.flood_buildings, analysis.flood_roads,
     analysis.flood_stops,

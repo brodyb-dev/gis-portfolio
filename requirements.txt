@@ -1,12 +1,13 @@
+# Pinned to the versions this project was built and tested with (docs/setup.md).
 # Database access
-psycopg[binary]>=3.2
-psycopg-pool>=3.2
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
 # API
-fastapi>=0.115
-uvicorn[standard]>=0.32
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
 # ETL helpers
-requests>=2.32
-python-dotenv>=1.0
+requests==2.34.2
+python-dotenv==1.2.4
 # Overture Maps buildings download (brings pyarrow, used to rewrite the GeoParquet)
-overturemaps>=1.0.2
-pyarrow>=20
+overturemaps==1.0.2
+pyarrow==26.0.0

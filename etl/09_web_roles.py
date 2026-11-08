@@ -27,8 +27,8 @@ def password(var: str) -> str:
         return value
     value = secrets.token_urlsafe(24)
     env = REPO / ".env"
-    text = env.read_text() if env.exists() else ""
-    with open(env, "a") as f:
+    text = env.read_text(encoding="utf-8") if env.exists() else ""
+    with open(env, "a", encoding="utf-8") as f:
         f.write(("" if text.endswith("\n") or not text else "\n") + f"{var}={value}\n")
     os.environ[var] = value
     log(f"generated {var} and saved it to .env")
@@ -45,8 +45,8 @@ def main() -> None:
         log(f"{'created' if verb == 'CREATE' else 'updated'} role {role}")
     sql(conn, pgsql.SQL("GRANT CONNECT ON DATABASE {} TO tiles_reader, api_reader")
         .format(pgsql.Identifier(conn.info.dbname)))
-    sql(conn, FUNCTIONS.read_text())
-    sql(conn, GRANTS.read_text())
+    sql(conn, FUNCTIONS.read_text(encoding="utf-8"))
+    sql(conn, GRANTS.read_text(encoding="utf-8"))
     layers = sql(conn, """
         SELECT count(*) FROM information_schema.role_table_grants
         WHERE grantee = 'tiles_reader' AND privilege_type = 'SELECT'""")[0][0]

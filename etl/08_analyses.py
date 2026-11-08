@@ -164,8 +164,9 @@ def main() -> int:
     L += table(["Area", "Intersections", "Dead ends", "Intersections / km²", "Dead-end share %",
                 "Street km / km²"], network, [False] + [True] * 5)
     L += ["", "## 5. Flood exposure (`analysis.flood_summary`)", "",
-          "A building is exposed if its footprint touches the zone. Road miles are drivable "
-          "roads, not counting bridges (elevated over the floodplain). Transit route miles do "
+          "A building is exposed if its footprint touches the zone. Road miles are streets as in "
+          "analysis 4 (drivable ways except `highway=service`: driveways, parking aisles, "
+          "alleys), not counting bridges (elevated over the floodplain). Transit route miles do "
           "include river crossings such as the MetroLink bridges, because GTFS route shapes "
           "carry no bridge information. The 500-yr row includes the 100-yr zone.", ""]
     L += table(["Zone", "Buildings", "Road miles", "Transit stops", "Transit routes",

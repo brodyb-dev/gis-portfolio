@@ -5,14 +5,12 @@ export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const REPO_URL = 'https://github.com/BrucieTheG/gis-portfolio';
 export const repoFile = (path) => `${REPO_URL}/blob/main/${path}`;
 
-// Contact details, as on the resume. Nothing else personal goes on the site.
+export const CONTACT_EMAIL = 'brodyg.maps@gmail.com';
+
+// Contact details: a name and an email only. Nothing else personal goes on the site.
 export const PROFILE = {
   name: 'Brody G.',
-  email: 'brodybgustin@gmail.com',
-  links: [
-    { label: 'LinkedIn', href: 'https://www.linkedin.com/in/brody-g' },
-    { label: 'GitHub', href: 'https://github.com/BrucieTheG' },
-  ],
+  email: CONTACT_EMAIL,
 };
 
 // Study area: St. Louis City + County.

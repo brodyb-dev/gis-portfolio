@@ -3,8 +3,12 @@
 This is how the development environment was built for Milestone 1. It uses native Windows installers, not Docker.
 Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
 
+Paths below (`A:\gis-portfolio`, `A:\gis-tools`, `A:\PostGRE_Data`) are this machine's examples, not
+requirements. Clone and install wherever you like, then point `.env` at your tools with `PG_BIN`,
+`OSM2PGSQL` and `PG_TILESERV` (see `.env.example`). The scripts find the repo from their own location.
+
 ## Confirmed versions
-| Component | Version | Location |
+| Component | Version | Location (this machine) |
 |---|---|---|
 | PostgreSQL | 18.6 (x86_64-windows, msvc) | `C:\Program Files\PostgreSQL\18`, data dir `A:\PostGRE_Data` |
 | PostGIS | 3.6.2 (GEOS 3.14.1dev, PROJ 8.2.1) | Stack Builder bundle |
@@ -17,17 +21,19 @@ Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
 | Python packages | fastapi 0.162.0, psycopg 3.3.6, psycopg-pool 3.3.3, uvicorn 0.54.0, python-dotenv 1.2.4, requests 2.34.2, overturemaps 1.0.2, pyarrow 26.0.0 | `.venv\` |
 
 ## Steps
-1. **PostgreSQL 18:** install it with the EDB Windows installer. Put the data directory at `A:\PostGRE_Data` and use port 5432.
+1. **PostgreSQL 18:** install it with the EDB Windows installer. Use port 5432; the data directory can go anywhere (this machine uses `A:\PostGRE_Data`).
    The service name is `postgresql-x64-18`.
 2. **PostGIS bundle:** in Stack Builder, choose Spatial Extensions → PostGIS 3.6 bundle. It includes pgRouting and GDAL/ogr2ogr.
-3. **osm2pgsql and pg_tileserv:** download the Windows zips and unzip them into `A:\gis-tools\`.
+3. **osm2pgsql and pg_tileserv:** download the Windows zips and unzip them anywhere (this machine uses `A:\gis-tools\`).
 4. **Python environment:**
    ```powershell
-   cd A:\gis-portfolio
+   cd A:\gis-portfolio   # your clone of the repo
    py -m venv .venv
    .venv\Scripts\python -m pip install -r requirements.txt
    ```
-5. **Connection settings:** copy `.env.example` to `.env` and set `PGPASSWORD`. Git ignores `.env`, so never commit it.
+5. **Connection settings:** copy `.env.example` to `.env` and set `PGPASSWORD`. If your PostgreSQL bin folder,
+   osm2pgsql or pg_tileserv aren't at the defaults shown there, set `PG_BIN`, `OSM2PGSQL` and `PG_TILESERV`.
+   Git ignores `.env`, so never commit it.
 6. **Database and extensions:** run the verify script. It checks the tool versions, creates `stl_gis` if it's missing, and enables
    `postgis` and `pgrouting`. You can run it again safely.
    ```powershell
@@ -35,7 +41,7 @@ Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
    ```
    It saves a report to `data\m1-verify.txt` (git-ignored). The password is never printed.
 7. **Load the data:** this downloads every source into `data\raw\` (about 600 MB, cached) and builds the
-   `raw` and `core` schemas, builds the routable network (`net` schema, about 1 minute), runs the
+   `raw` and `core` schemas plus the display-only `basemap` reference layers, builds the routable network (`net` schema, about 1 minute), runs the
    analyses in `db\analysis\` (`analysis` schema, about 1.5 minutes, writes `docs\analysis-results.md`),
    then writes `docs\data-qc.md` and `docs\network-qc.md`. A first run takes about 15 minutes, mostly the FEMA
    service. Rerunning is safe.
@@ -67,4 +73,4 @@ Versions were confirmed on 2026-11-02 with `scripts/m1-verify.ps1`.
 ## Conventions
 - Study area: St. Louis City + St. Louis County (FIPS 29510, 29189).
 - Analysis CRS: EPSG:26915 (NAD83 / UTM 15N).
-- Keep all project data on `A:`. `B:` is a slow HDD.
+- On this machine all project data is kept on `A:` (`B:` is a slow HDD). Any local drive works.

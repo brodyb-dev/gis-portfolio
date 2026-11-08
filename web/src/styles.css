@@ -57,8 +57,21 @@ main { flex: 1; display: flex; flex-direction: column; }
   background: rgba(255, 253, 248, 0.95); border: 1px solid var(--rule); border-radius: 999px;
   padding: 4px 12px; font-size: 12.5px; box-shadow: 0 1px 4px rgba(0,0,0,0.12);
 }
+.map-stack {
+  position: absolute; left: 10px; top: 10px; right: 52px; z-index: 2; pointer-events: none;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+}
+.map-stack > * { pointer-events: auto; }
+.map-stack .map-chip {
+  position: static; transform: none; white-space: normal; pointer-events: none;
+  border-radius: 6px; padding: 5px 10px; font-size: 12.5px;
+}
+.map-title {
+  max-width: min(420px, 100%); background: rgba(255, 253, 248, 0.95); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; line-height: 1.35;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12); pointer-events: none;
+}
 .map-labels-btn {
-  position: absolute; left: 10px; top: 10px; z-index: 2;
   background: rgba(255, 253, 248, 0.95); border: 1px solid var(--rule); border-radius: 6px;
   padding: 5px 10px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,0.12);
@@ -73,6 +86,10 @@ main { flex: 1; display: flex; flex-direction: column; }
 .lede { color: var(--muted); margin: 0 0 16px; }
 .hint, .fine { color: var(--muted); font-size: 13px; }
 .error { color: #b3261e; font-weight: 600; }
+.notice {
+  margin: 0 0 14px; padding: 8px 12px; font-size: 13.5px; background: #fbf3e4;
+  border: 1px solid #ecd9b4; border-left: 4px solid #c9a24c; border-radius: 6px;
+}
 
 .segmented { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 3px; background: #efe9de; border-radius: var(--radius); }
 .segmented button {
@@ -80,6 +97,9 @@ main { flex: 1; display: flex; flex-direction: column; }
   font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; white-space: nowrap;
 }
 .segmented button:hover { background: #e5ddcf; }
+.segmented-modes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.segmented-modes button { grid-column: span 2; white-space: normal; line-height: 1.25; padding: 6px 4px; }
+.segmented-modes button:nth-child(-n+2) { grid-column: span 3; }
 .segmented button.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.15); font-weight: 600; }
 .segmented button:focus-visible, .toggle input:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
 
@@ -92,7 +112,10 @@ main { flex: 1; display: flex; flex-direction: column; }
 .legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .legend-note { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .swatch { flex: none; display: inline-block; width: 18px; height: 12px; background: var(--c); border-radius: 2px; border: 1px solid rgba(0,0,0,0.08); }
-.swatch-line { height: 4px; border: 0; border-radius: 2px; }
+.swatch-line { height: var(--w, 4px); border: 0; border-radius: 2px; }
+.swatch-dash { height: 3px; border: 0; background: repeating-linear-gradient(90deg, var(--c) 0 6px, transparent 6px 9px); }
+.swatch-hatch { background: repeating-linear-gradient(135deg, var(--c) 0 1px, transparent 1px 4px), var(--o); border-color: rgba(0,0,0,0.15); }
+.legend li .swatch + .swatch { margin-left: -4px; }
 .swatch-circle { width: 12px; height: 12px; border-radius: 50%; margin: 0 3px; }
 .swatch-ring { width: 12px; height: 12px; border-radius: 50%; margin: 0 3px; background: transparent; border: 2.5px solid var(--o); }
 
@@ -117,6 +140,7 @@ table.data tfoot td { text-align: left; color: var(--muted); border-bottom: 0; }
 .credits { font-size: 12px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 10px; margin-top: 14px; }
 
 .maplibregl-popup-content { font: 13px/1.45 var(--sans); color: var(--ink); padding: 10px 26px 10px 12px; border-radius: 6px; }
+.maplibregl-ctrl-attrib { font: 11px/1.4 var(--sans); }
 .maplibregl-ctrl-scale { border-color: var(--muted); color: var(--ink); background: rgba(255,253,248,0.8); }
 
 /* ---- home ------------------------------------------------------------------------------ */
@@ -125,18 +149,28 @@ table.data tfoot td { text-align: left; color: var(--muted); border-bottom: 0; }
 .hero h1 { font-size: clamp(30px, 5vw, 46px); max-width: 15em; margin: 6px 0 14px; }
 .hero .lede { font-size: 17px; max-width: 40em; position: relative; }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: var(--accent); font-weight: 600; margin: 0; }
-.hero-iso { position: absolute; right: -40px; top: -10px; width: 260px; height: 260px; z-index: -1; opacity: 0.55; }
+/* Inside the hero's box (right/top 0): .hero has overflow: hidden, so negative offsets clipped the circles. */
+.hero-iso { position: absolute; right: 0; top: 0; width: 260px; height: 260px; z-index: -1; opacity: 0.55; }
 .hero-iso span { position: absolute; inset: calc((1 - var(--s)) * 50%); border-radius: 46% 54% 50% 50% / 52% 44% 56% 48%; background: var(--c); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin: 10px 0 40px; }
 .card { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 0 0 18px; color: var(--ink); text-decoration: none; overflow: hidden; transition: transform 0.15s, box-shadow 0.15s; }
 .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(42,38,34,0.12); color: var(--ink); }
 .card-ramp { display: flex; height: 64px; }
+.card-img { display: block; width: 100%; height: 150px; object-fit: cover; border-bottom: 1px solid var(--rule); }
 .card-ramp span { flex: 1; }
 .card h2 { font-size: 20px; margin: 16px 18px 6px; }
 .card p { margin: 0 18px 12px; color: var(--muted); }
 .card-go { margin: auto 18px 0; color: var(--accent); font-weight: 600; font-size: 14px; }
 .about, .contact { max-width: 46em; }
 .about h2, .contact h2 { font-size: 22px; }
+.about-line { font-weight: 600; margin: 0 0 6px; }
+.credentials { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 12px 0; padding: 0; }
+.credentials li { background: #efe9de; border-radius: 999px; padding: 3px 12px; font-size: 13.5px; }
+.skills { display: grid; gap: 6px; margin: 12px 0 0; }
+.skills div { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; }
+.skills dt { font-weight: 600; }
+.skills dd { margin: 0; }
+@media (max-width: 480px) { .skills div { grid-template-columns: 1fr; gap: 0; } }
 
 /* ---- methods --------------------------------------------------------------------------- */
 .prose { max-width: 820px; margin: 0 auto; padding: 36px 20px 60px; width: 100%; }
@@ -144,6 +178,8 @@ table.data tfoot td { text-align: left; color: var(--muted); border-bottom: 0; }
 .prose h2 { font-size: 21px; margin-top: 30px; }
 .prose li { margin: 4px 0; }
 .table-scroll { overflow-x: auto; }
+/* File paths never break mid-name; Methods.jsx adds a <wbr> after each "/" so they wrap only there. */
+.prose table.data code { overflow-wrap: normal; word-break: normal; }
 .prose table.data { font-size: 13.5px; }
 .prose table.data th, .prose table.data td { text-align: left; vertical-align: top; }
 
@@ -159,7 +195,15 @@ table.data tfoot td { text-align: left; color: var(--muted); border-bottom: 0; }
   .map-page { display: flex; flex-direction: column; height: auto; }
   .map-wrap { height: 58vh; height: 58dvh; flex: none; }
   .panel { border-left: 0; border-top: 1px solid var(--rule); overflow: visible; padding: 18px 16px 28px; }
-  .hero-iso { width: 160px; height: 160px; right: -50px; }
+  /* The hero blobs move above the eyebrow so they never sit behind the headline. */
+  .hero { display: flex; flex-direction: column; }
+  .hero-iso { position: relative; order: -1; right: auto; top: auto; z-index: 0; width: 64px; height: 64px; margin-bottom: 12px; }
+  /* Stack each table row into a small card, with the column name from data-label. */
+  .table-stack thead { display: none; }
+  .table-stack, .table-stack tbody, .table-stack tr { display: block; width: 100%; }
+  .table-stack tr { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+  .prose .table-stack td { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; padding: 2px 0; border: 0; }
+  .table-stack td::before { content: attr(data-label); font-weight: 600; font-size: 12px; color: var(--muted); }
   .home, .prose { padding-left: 16px; padding-right: 16px; }
 }
 

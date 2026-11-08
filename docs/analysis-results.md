@@ -1,6 +1,6 @@
 # Analysis Results
 
-Generated 2026-11-03 18:08 by `etl/08_analyses.py` from the SQL in `db/analysis/`. Results are tables in the `analysis` schema.
+Generated 2026-11-07 19:25 by `etl/08_analyses.py` from the SQL in `db/analysis/`. Results are tables in the `analysis` schema.
 
 ## Checks
 
@@ -9,7 +9,7 @@ Generated 2026-11-03 18:08 by `etl/08_analyses.py` from the SQL in `db/analysis/
 | Every building is in a hexagon (analysis 1) | 0 of 500,066 unassigned | PASS |
 | Network metrics found intersections (analysis 4) | 5,183 hexes with intersections | PASS |
 | Every building has a network distance to transit (analysis 2) | 0 missing | PASS |
-| 15-min walk isochrone under 3 s at every test point (analysis 3, criterion 5) | slowest 0.13 s | PASS |
+| 15-min walk isochrone under 3 s at every test point (analysis 3, criterion 5) | slowest 0.16 s | PASS |
 | Flood exposure found buildings (analysis 5) | 15,947 buildings | PASS |
 
 **5 of 5 checks pass.**
@@ -48,18 +48,18 @@ Computed live. Each call returns the 5, 10 and 15-minute bands; times include al
 
 | Start | Mode | Seconds | 5 min km² | 10 min km² | 15 min km² |
 |---|---|--:|--:|--:|--:|
-| Downtown St. Louis | walk | 0.13 | 0.29 | 1.29 | 3.00 |
-| Downtown St. Louis | drive | 2.22 | 29.31 | 129.20 | 334.19 |
-| Central West End | walk | 0.06 | 0.25 | 1.23 | 2.77 |
-| Central West End | drive | 2.20 | 39.07 | 201.69 | 445.93 |
+| Downtown St. Louis | walk | 0.16 | 0.29 | 1.29 | 3.00 |
+| Downtown St. Louis | drive | 2.23 | 29.31 | 129.20 | 334.19 |
+| Central West End | walk | 0.05 | 0.25 | 1.23 | 2.77 |
+| Central West End | drive | 2.59 | 39.07 | 201.69 | 445.93 |
 | Clayton | walk | 0.03 | 0.09 | 0.46 | 1.88 |
-| Clayton | drive | 4.10 | 37.22 | 204.23 | 557.26 |
-| Florissant | walk | 0.02 | 0.25 | 1.07 | 2.58 |
-| Florissant | drive | 1.83 | 44.18 | 217.35 | 437.09 |
+| Clayton | drive | 2.80 | 37.22 | 204.23 | 557.26 |
+| Florissant | walk | 0.01 | 0.25 | 1.07 | 2.58 |
+| Florissant | drive | 2.10 | 44.18 | 217.35 | 437.09 |
 | Kirkwood | walk | 0.02 | 0.25 | 1.13 | 2.56 |
-| Kirkwood | drive | 2.11 | 37.45 | 222.29 | 577.49 |
+| Kirkwood | drive | 2.58 | 37.45 | 222.29 | 577.49 |
 
-Slowest walk call 0.13 s; slowest drive call 4.10 s.
+Slowest walk call 0.16 s; slowest drive call 2.80 s.
 
 ## 4. Street network metrics (`analysis.hex_network`)
 
@@ -72,13 +72,13 @@ Streets are drivable ways except `highway=service` (driveways, parking aisles, a
 
 ## 5. Flood exposure (`analysis.flood_summary`)
 
-A building is exposed if its footprint touches the zone. Road miles are drivable roads, not counting bridges (elevated over the floodplain). Transit route miles do include river crossings such as the MetroLink bridges, because GTFS route shapes carry no bridge information. The 500-yr row includes the 100-yr zone.
+A building is exposed if its footprint touches the zone. Road miles are streets as in analysis 4 (drivable ways except `highway=service`: driveways, parking aisles, alleys), not counting bridges (elevated over the floodplain). Transit route miles do include river crossings such as the MetroLink bridges, because GTFS route shapes carry no bridge information. The 500-yr row includes the 100-yr zone.
 
 | Zone | Buildings | Road miles | Transit stops | Transit routes | Route miles |
 |---|--:|--:|--:|--:|--:|
-| 100-yr | 6680 | 305.8 | 85 | 31 | 14.4 |
-| 500-yr (includes 100-yr) | 13267 | 491.1 | 155 | 37 | 28.7 |
-| Behind levee | 2680 | 410.4 | 59 | 15 | 21.2 |
+| 100-yr | 6680 | 169.9 | 85 | 31 | 14.4 |
+| 500-yr (includes 100-yr) | 13267 | 284.0 | 155 | 37 | 28.7 |
+| Behind levee | 2680 | 140.5 | 59 | 15 | 21.2 |
 
 ## Method notes
 - **Network distance** to transit comes from one `pgr_dijkstraCost` run from a virtual source joined to every stop. Buildings snap to the nearest walkable edge and take the shorter way to either end, plus the snap offset.

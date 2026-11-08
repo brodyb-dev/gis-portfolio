@@ -1,26 +1,31 @@
 # Milestone 1 check: tool versions, plus the stl_gis database with PostGIS and pgRouting.
-# Run from A:\gis-portfolio:
+# Run from the repo root:
 #   powershell -ExecutionPolicy Bypass -File scripts\m1-verify.ps1
 # Output goes to data\m1-verify.txt (git-ignored). The password is never printed.
+# Tool paths come from .env (PG_BIN, OSM2PGSQL, PG_TILESERV); see .env.example.
 
-$repo  = Split-Path -Parent $PSScriptRoot
+$repo  = Split-Path -Parent $PSScriptRoot   # the repo root, wherever it was cloned
 $out   = Join-Path $repo 'data\m1-verify.txt'
-$pgbin = 'C:\Program Files\PostgreSQL\18\bin'
-$psql  = Join-Path $pgbin 'psql.exe'
-$osm2pgsql   = 'A:\gis-tools\osm2pgsql\osm2pgsql-bin\osm2pgsql.exe'
-$pg_tileserv = 'A:\gis-tools\pg_tileserv\pg_tileserv.exe'
 
-# Load PG* settings from .env (repo root first, then A:\gis-portfolio.env).
-$envFile = @((Join-Path $repo '.env'), 'A:\gis-portfolio.env') |
-    Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $envFile) { Write-Host 'No .env found in A:\gis-portfolio. Copy .env.example to .env first.'; exit 1 }
+# Load settings from the repo's .env into this session's environment.
+$envFile = Join-Path $repo '.env'
+if (-not (Test-Path $envFile)) { Write-Host "No .env found in $repo. Copy .env.example to .env first."; exit 1 }
 Get-Content $envFile | ForEach-Object {
-    if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*$') {
+    if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') {
         $v = $Matches[2].Trim('"').Trim("'")
         Set-Item -Path "env:$($Matches[1])" -Value $v
     }
 }
-$db = if ($env:PGDATABASE) { $env:PGDATABASE } else { 'stl_gis' }
+function EnvOr([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable($name)
+    if ($v) { $v } else { $default }
+}
+$db          = EnvOr 'PGDATABASE' 'stl_gis'
+# Defaults are this machine's install locations; override them in .env.
+$pgbin       = EnvOr 'PG_BIN' 'C:\Program Files\PostgreSQL\18\bin'
+$osm2pgsql   = EnvOr 'OSM2PGSQL' 'A:\gis-tools\osm2pgsql\osm2pgsql-bin\osm2pgsql.exe'
+$pg_tileserv = EnvOr 'PG_TILESERV' 'A:\gis-tools\pg_tileserv\pg_tileserv.exe'
+$psql        = Join-Path $pgbin 'psql.exe'
 
 $log = New-Object System.Collections.Generic.List[string]
 function Add([string]$s) { $log.Add($s); Write-Host $s }

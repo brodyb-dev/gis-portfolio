@@ -7,7 +7,7 @@
     2. Refreshes the read-only web roles and their grants (etl/09_web_roles.py).
     3. Starts pg_tileserv  -> http://localhost:7800  (map layers as vector tiles)
     4. Starts the API      -> http://localhost:8000  (isochrones and stats; docs at /docs)
-    5. Starts the website  -> http://localhost:5173  (once web/package.json exists, M6)
+    5. Starts the website  -> http://localhost:5173  (Vite dev server in web/; skip with -NoWeb)
 
     Logs go to logs\ (git-ignored). Press Ctrl+C to stop all services.
 
@@ -99,7 +99,7 @@ try {
     Wait-Http "http://127.0.0.1:$ApiPort/health" 'API' $api
     Say "API          http://localhost:$ApiPort  (docs: /docs)"
 
-    # --- 5. Website (M6) -------------------------------------------------------------------
+    # --- 5. Website ------------------------------------------------------------------------
     $web = Join-Path $Repo 'web'
     if (-not $NoWeb -and (Test-Path (Join-Path $web 'package.json'))) {
         $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source

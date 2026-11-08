@@ -1,9 +1,13 @@
 """FastAPI app for the analyses the map pages can't get from vector tiles (M5).
 
-    GET /health                 database reachable?
-    GET /isochrone              walk or drive time bands from a point, as GeoJSON
-    GET /stats/flood            flood exposure summary (analysis 5)
+    GET /isochrone              walk or drive time bands from a point, as GeoJSON (analysis 3)
+    GET /stats/buildings        building density and character, City vs. County (analysis 1)
     GET /stats/transit-access   straight-line vs. network transit access (analysis 2)
+    GET /stats/network          street network metrics and network QC counts (analysis 4)
+    GET /stats/flood            flood exposure summary (analysis 5)
+
+    GET /health                 database reachable?
+    GET /docs                   interactive API docs (FastAPI's Swagger UI; /openapi.json too)
 
 Map layers come from pg_tileserv (port 7800), not from here. Run with scripts/start.ps1, or:
 
@@ -26,6 +30,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from psycopg.conninfo import make_conninfo
 from psycopg_pool import ConnectionPool
 
 REPO = Path(__file__).resolve().parent.parent
@@ -35,6 +40,9 @@ load_dotenv(REPO / ".env")
 MAX_MINUTES = {"walk": 60, "drive": 30}
 MAX_BANDS = 6
 CACHE_SIZE = 256
+# A click farther than this from the routing network is refused rather than silently snapped to
+# a distant street (about 1/4 mile).
+MAX_SNAP_M = 400
 ORIGINS = os.getenv("WEB_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
 
@@ -42,10 +50,10 @@ def _conninfo() -> str:
     password = os.getenv("API_DB_PASSWORD")
     if not password:
         raise RuntimeError("API_DB_PASSWORD is not set; run etl/09_web_roles.py first")
-    parts = {"host": os.getenv("PGHOST", "localhost"), "port": os.getenv("PGPORT", "5432"),
-             "dbname": os.getenv("PGDATABASE", "stl_gis"), "user": "api_reader",
-             "password": password, "application_name": "gis-portfolio-api"}
-    return " ".join(f"{k}='{v}'" for k, v in parts.items())
+    # make_conninfo quotes and escapes each value, so a password with spaces or quotes still works.
+    return make_conninfo(host=os.getenv("PGHOST", "localhost"), port=os.getenv("PGPORT", "5432"),
+                         dbname=os.getenv("PGDATABASE", "stl_gis"), user="api_reader",
+                         password=password, application_name="gis-portfolio-api")
 
 
 pool: ConnectionPool | None = None
@@ -63,7 +71,7 @@ async def lifespan(_: FastAPI):
         pool.close()
 
 
-app = FastAPI(title="St. Louis GIS portfolio API", version="0.5.0", lifespan=lifespan,
+app = FastAPI(title="Gateway Atlas API", version="0.7.0", lifespan=lifespan,
               description="Live isochrones and summary statistics for the St. Louis City + "
                           "County GIS portfolio. Map layers are served by pg_tileserv.")
 app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["GET"],
@@ -124,6 +132,33 @@ def _parse_minutes(text: str, mode: str) -> list[int]:
     return minutes
 
 
+# One round trip that answers three questions about a click:
+#   inside    is it inside the study area?
+#   street_m  how far is the nearest street of the main walk/drive network (any point on it)?
+#   n         the nearest network vertex, where the isochrone actually starts.
+# street_m is measured to the street rather than the vertex so that a click beside a long road
+# isn't refused just because the road's intersections are far apart.
+SNAP_SQL = """
+    WITH p AS (SELECT ST_Transform(ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326), 26915)
+                      AS geom)
+    SELECT EXISTS (SELECT 1 FROM core.study_boundary b WHERE ST_Intersects(b.geom, p.geom))
+               AS inside,
+           (SELECT ST_Distance(e.geom, p.geom)
+            FROM net.edges e JOIN net.vertices v ON v.id = e.source
+            WHERE CASE WHEN %(mode)s = 'walk' THEN e.walkable AND v.in_walk_main
+                       ELSE e.drivable AND v.in_drive_main END
+            ORDER BY e.geom <-> p.geom LIMIT 1) AS street_m,
+           n.id, ST_X(g), ST_Y(g), ST_Distance(n.geom, p.geom) AS snap_m
+    FROM p
+    CROSS JOIN LATERAL (
+        SELECT id, geom FROM net.vertices v
+        WHERE CASE WHEN %(mode)s = 'walk' THEN v.in_walk_main ELSE v.in_drive_main END
+        ORDER BY v.geom <-> p.geom LIMIT 1) n
+    CROSS JOIN LATERAL ST_Transform(n.geom, 4326) g"""
+OUTSIDE_MSG = "Pick a point inside St. Louis City or County"
+TOO_FAR_MSG = "No street within ¼ mile of that point — try clicking closer to a road"
+
+
 @app.get("/isochrone", summary="Walk or drive time bands from a point")
 def isochrone(lon: float = Query(..., description="Start longitude (WGS 84)"),
               lat: float = Query(..., description="Start latitude (WGS 84)"),
@@ -131,22 +166,23 @@ def isochrone(lon: float = Query(..., description="Start longitude (WGS 84)"),
               minutes: str = Query("5,10,15", description="Comma-separated band limits")):
     """Returns a GeoJSON FeatureCollection with one polygon per band, largest first so the
     smaller bands draw on top. The start snaps to the nearest vertex of the main walk or drive
-    network; `start` gives that snapped point. Drive times are free-flow (no traffic)."""
+    network; `start` gives that snapped point. Drive times are free-flow (no traffic).
+
+    Returns 400 if the point is outside St. Louis City + County, or more than 400 m from the
+    nearest street of the network."""
     bands = _parse_minutes(minutes, mode)
+    # Cheap prefilter: the bounding box, no database call. The real test is the boundary below.
     xmin, ymin, xmax, ymax = study_bbox()
     if not (xmin <= lon <= xmax and ymin <= lat <= ymax):
-        raise HTTPException(400, "start point is outside St. Louis City + County")
+        raise HTTPException(400, OUTSIDE_MSG)
 
     t = time.perf_counter()
-    snap = query("""
-        SELECT n.id, ST_X(g), ST_Y(g), ST_Distance(n.geom, p.geom)
-        FROM (SELECT ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), 26915) AS geom) p
-        CROSS JOIN LATERAL (
-            SELECT id, geom FROM net.vertices v
-            WHERE CASE WHEN %s = 'walk' THEN v.in_walk_main ELSE v.in_drive_main END
-            ORDER BY v.geom <-> p.geom LIMIT 1) n
-        CROSS JOIN LATERAL ST_Transform(n.geom, 4326) g""", (lon, lat, mode))[0]
-    vertex, slon, slat, snap_m = snap
+    inside, street_m, vertex, slon, slat, snap_m = query(
+        SNAP_SQL, {"lon": lon, "lat": lat, "mode": mode})[0]
+    if not inside:
+        raise HTTPException(400, OUTSIDE_MSG)
+    if street_m is None or street_m > MAX_SNAP_M:
+        raise HTTPException(400, TOO_FAR_MSG)
     key = (mode, vertex, tuple(bands))
     cached = _iso_cache.get_item(key)
     if cached is None:
@@ -172,8 +208,9 @@ def isochrone(lon: float = Query(..., description="Start longitude (WGS 84)"),
 # --- summary statistics -------------------------------------------------------------------
 @app.get("/stats/flood", summary="Flood exposure summary (analysis 5)")
 def stats_flood():
-    """Buildings, road miles and transit exposed in each FEMA zone. Road miles leave out
-    bridges; the 500-yr row includes the 100-yr zone."""
+    """Buildings, road miles and transit exposed in each FEMA zone. Road miles count streets
+    (no highway=service driveways or parking aisles) and leave out bridges; the 500-yr row
+    includes the 100-yr zone."""
     if "flood" not in _static:
         rows = query("""
             SELECT label, buildings, road_miles, transit_stops, transit_routes, route_miles
@@ -241,8 +278,9 @@ def stats_network():
         (inter, dead, area, km), = query("""
             SELECT sum(intersections), sum(dead_ends), sum(area_km2), sum(street_km)
             FROM analysis.hex_network""")
+        # Near misses leave out dead ends cut by the study boundary, as docs/network-qc.md does.
         (dead_ends, near, boundary), = query("""
-            SELECT count(*), count(*) FILTER (WHERE near_miss_m IS NOT NULL),
+            SELECT count(*), count(*) FILTER (WHERE near_miss_m IS NOT NULL AND NOT at_boundary),
                    count(*) FILTER (WHERE at_boundary) FROM qc.net_dead_ends""")
         crossings = dict(query("SELECT kind, count(*) FROM qc.net_unnoded_crossings GROUP BY 1"))
         (overlaps, overlap_m), = query(

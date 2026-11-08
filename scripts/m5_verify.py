@@ -30,8 +30,10 @@ WALK_LIMIT_S = 3.0  # acceptance criterion 5
 EXPECTED_LAYERS = {
     "core.study_boundary", "core.counties", "core.buildings", "core.roads", "core.rail_lines",
     "core.transit_stops", "core.transit_routes", "core.flood_zones", "core.hydro_areas",
-    "core.hydro_lines", "core.hydro_context", "core.parks", "core.places", "core.landmarks",
-    "core.road_labels", "core.river_labels", "core.flood_z", "core.roads_z", "analysis.hex_buildings", "analysis.hex_network",
+    "core.hydro_lines", "core.flood_z", "core.roads_z",
+    "basemap.hydro_context", "basemap.parks", "basemap.places", "basemap.landmarks",
+    "basemap.road_labels", "basemap.river_labels",
+    "analysis.hex_buildings", "analysis.hex_network",
     "analysis.hex_transit", "analysis.building_transit", "analysis.flood_buildings",
     "analysis.flood_roads", "analysis.flood_stops", "qc.net_dead_ends",
     "qc.net_unnoded_crossings", "qc.net_overlaps", "qc.net_islands", "qc.net_oneway_traps",
@@ -182,6 +184,11 @@ def main() -> int:
                    again.json()["cached"] and s < 0.5))
 
     bad = [("outside the study area", {"lon": -91.5, "lat": 38.6}, 400),
+           # Inside the bounding box but across the river in Illinois: only the boundary test catches it.
+           ("East St. Louis, IL (inside bbox, outside counties)", {"lon": -90.15, "lat": 38.62}, 400),
+           # Missouri River bottoms north of Spanish Lake: inside the County, ~2.1 km from the nearest
+           # main-network street (checked with the API's SNAP_SQL; 420 m inside the county line).
+           ("more than 400 m from a street", {"lon": -90.30, "lat": 38.884}, 400),
            ("unknown mode", {"lon": -90.3, "lat": 38.6, "mode": "bike"}, 422),
            ("drive longer than 30 min", {"lon": -90.3, "lat": 38.6, "mode": "drive",
                                          "minutes": "45"}, 422),

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.6.0",
   "type": "module",
-  "description": "Web maps for the St. Louis City + County GIS portfolio (React + Vite + MapLibre GL JS).",
+  "description": "Gateway Atlas: web maps of St. Louis City + County (React + Vite + MapLibre GL JS).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

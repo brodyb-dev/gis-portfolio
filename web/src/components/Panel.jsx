@@ -1,6 +1,20 @@
 import { BASE_CREDIT } from '../map/basemap.js';
 
-/** A legend: a title and rows of swatches. `kind` is fill, line or circle. */
+/**
+ * One legend swatch. `kind` is fill, line, circle, ring or hatch. `outline` colors a ring or a
+ * hatch background; `width` sets a line's thickness in px; `faded` lowers the opacity.
+ */
+function Swatch({ color, kind, outline, width, faded }) {
+  const style = { '--c': color, '--o': outline || color };
+  if (width) style['--w'] = `${width}px`;
+  if (faded) style.opacity = 0.35;
+  return <span className={`swatch swatch-${kind}`} style={style} aria-hidden="true" />;
+}
+
+/**
+ * A legend: a title and rows of swatches. `kind` is the default swatch kind for every row.
+ * A row with `colors: [...]` shows one swatch per color (for example one per flood zone).
+ */
 export function Legend({ title, items, kind = 'fill', note }) {
   return (
     <figure className="legend">
@@ -8,8 +22,10 @@ export function Legend({ title, items, kind = 'fill', note }) {
       <ul>
         {items.map((it) => (
           <li key={it.label}>
-            <span className={`swatch swatch-${it.kind || kind}`}
-                  style={{ '--c': it.color, '--o': it.outline || it.color }} aria-hidden="true" />
+            {(it.colors || [it.color]).map((c, i) => (
+              <Swatch key={i} color={c} kind={it.kind || kind} outline={it.outline}
+                      width={it.width} faded={it.faded} />
+            ))}
             {it.label}
           </li>
         ))}
@@ -39,10 +55,10 @@ export function MapPanel({ title, lede, children, how, credits }) {
   );
 }
 
-/** A row of mutually exclusive buttons. */
-export function Segmented({ options, value, onChange, label }) {
+/** A row of mutually exclusive buttons. `className` adds a layout variant (e.g. a grid). */
+export function Segmented({ options, value, onChange, label, className = '' }) {
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className={`segmented ${className}`.trim()} role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value}
                 className={value === o.value ? 'on' : ''} onClick={() => onChange(o.value)}>

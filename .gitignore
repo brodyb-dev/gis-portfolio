@@ -10,9 +10,13 @@ data/*
 *.osm.pbf
 *.tif
 *.zip
+*.parquet
+*.part
 
-# Secrets
+# Secrets (every .env variant except the template)
 .env
+.env.*
+!.env.example
 *.env.local
 
 # Python
@@ -34,3 +38,4 @@ Thumbs.db
 
 # Service logs (scripts/start.ps1)
 logs/
+*.log

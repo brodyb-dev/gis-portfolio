@@ -42,3 +42,12 @@ SELECT format('%I.%I', f_table_schema, f_table_name)::regclass AS tbl,
 FROM geometry_columns
 WHERE f_table_schema = 'core'
 ORDER BY f_table_name;
+
+-- The basemap reference layers (etl/10_context.py). Display only and allowed to extend past the
+-- study boundary, so qc_report.py checks them without enforcing the boundary test.
+CREATE OR REPLACE VIEW qc.basemap_tables AS
+SELECT format('%I.%I', f_table_schema, f_table_name)::regclass AS tbl,
+       f_geometry_column AS geom_col, srid AS declared_srid, type AS declared_type
+FROM geometry_columns
+WHERE f_table_schema = 'basemap'
+ORDER BY f_table_name;

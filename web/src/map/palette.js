@@ -41,8 +41,9 @@ export const RAMP = {
 
 export const FLOOD = {
   '100-yr': '#2f6ea8',
-  '500-yr': '#86b6dc',
-  levee: '#b39bc8',
+  '500-yr': '#7fa3c4',    // darker than the water fill so the two don't blend
+  levee: '#b39bc8',       // soft lavender fill for the levee-protected zone
+  leveeHatch: '#6b4c8c',  // fine purple diagonals drawn over the lavender fill
 };
 
 // Exposed features in each zone, drawn darker than the zone fill.
@@ -59,11 +60,15 @@ export const QC = {
   near_miss: '#b3261e',
   crossing: '#b3261e',
   overlap: '#7b3f99',
-  island: '#2e7d5b',
+  island: '#4a5a6a',      // slate, so it doesn't read as a transit line
   trap: '#c23b8b',
 };
 
-export const TRANSIT = { bus: '#5e6a73', MLR: '#cc0033', MLB: '#333399', stop: '#22746e' };
+// Transit lines: a charcoal core on a cream casing, so routes read on top of any color ramp.
+export const TRANSIT = { bus: '#3a3530', casing: '#fbfaf6', MLR: '#cc0033', MLB: '#333399', stop: '#3a3530' };
+
+// Neutral gray for "no data / not applicable" areas.
+export const NO_DATA = '#e3e0d9';
 
 /** A MapLibre `step` expression mapping `value` into a ramp at the given breaks. */
 export function stepColor(value, breaks, ramp) {

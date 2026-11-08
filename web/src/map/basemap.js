@@ -11,9 +11,9 @@ import { tileSource } from '../config.js';
 
 // Glyphs (Noto Sans, SIL Open Font License) are served from web/public/fonts.
 const GLYPHS = `${window.location.origin}${import.meta.env.BASE_URL}fonts/{fontstack}/{range}.pbf`;
-const REGULAR = ['Noto Sans Regular'];
-const MEDIUM = ['Noto Sans Medium'];
-const ITALIC = ['Noto Sans Italic'];
+export const REGULAR = ['Noto Sans Regular'];
+export const MEDIUM = ['Noto Sans Medium'];
+export const ITALIC = ['Noto Sans Italic'];
 
 const roadWidth = (base) => ['interpolate', ['exponential', 1.6], ['zoom'], 9, base * 0.35, 13, base, 17, base * 6];
 const caseWidth = (base) => ['interpolate', ['exponential', 1.6], ['zoom'], 9, base * 0.35 + 0.6, 13, base + 1.4, 17, base * 6 + 2.5];
@@ -53,24 +53,24 @@ export function baseStyle() {
     sources: {
       boundary: tileSource('core.study_boundary', { maxzoom: 14 }),
       counties: tileSource('core.counties', { properties: ['name'], maxzoom: 14 }),
-      water: tileSource('core.hydro_context', { properties: ['kind'], maxzoom: 15 }),
+      water: tileSource('basemap.hydro_context', { properties: ['kind'], maxzoom: 15 }),
       streams: tileSource('core.hydro_lines', { properties: ['kind'], maxzoom: 15 }),
-      parks: tileSource('core.parks', { properties: ['name', 'kind', 'area_ha'], maxzoom: 15 }),
+      parks: tileSource('basemap.parks', { properties: ['name', 'kind', 'area_ha'], maxzoom: 15 }),
       // A function layer that sends only the road classes drawn at each zoom (db/serving/02_tile_functions.sql).
       roads: tileSource('core.roads_z'),
       rail: tileSource('core.rail_lines', { properties: ['railway'], maxzoom: 15 }),
-      roadLabels: tileSource('core.road_labels', { properties: ['kind', 'label', 'length_m'], maxzoom: 15 }),
-      places: tileSource('core.places', { properties: ['name', 'place', 'rank'], maxzoom: 14 }),
-      landmarks: tileSource('core.landmarks', { properties: ['name', 'kind'], maxzoom: 14 }),
-      riverLabels: tileSource('core.river_labels', { properties: ['name'], maxzoom: 14 }),
+      roadLabels: tileSource('basemap.road_labels', { properties: ['kind', 'label', 'length_m'], maxzoom: 15 }),
+      places: tileSource('basemap.places', { properties: ['name', 'place', 'rank'], maxzoom: 14 }),
+      landmarks: tileSource('basemap.landmarks', { properties: ['name', 'kind'], maxzoom: 14 }),
+      riverLabels: tileSource('basemap.river_labels', { properties: ['name'], maxzoom: 14 }),
     },
     layers: [
       { id: 'background', type: 'background', paint: { 'background-color': BASE.outside } },
       { id: 'land', type: 'fill', source: 'boundary', 'source-layer': 'core.study_boundary',
         paint: { 'fill-color': BASE.land } },
-      { id: 'parks', type: 'fill', source: 'parks', 'source-layer': 'core.parks',
+      { id: 'parks', type: 'fill', source: 'parks', 'source-layer': 'basemap.parks',
         paint: { 'fill-color': ['match', ['get', 'kind'], 'golf', BASE.golf, 'cemetery', BASE.cemetery, BASE.park] } },
-      { id: 'water', type: 'fill', source: 'water', 'source-layer': 'core.hydro_context',
+      { id: 'water', type: 'fill', source: 'water', 'source-layer': 'basemap.hydro_context',
         paint: { 'fill-color': BASE.water } },
       { id: 'streams', type: 'line', source: 'streams', 'source-layer': 'core.hydro_lines',
         minzoom: 11,
@@ -95,56 +95,69 @@ export function baseStyle() {
       { id: 'top-anchor', type: 'background', layout: { visibility: 'none' } },
 
       // Reference labels -------------------------------------------------------------------
-      { id: 'label-water', type: 'symbol', source: 'riverLabels', 'source-layer': 'core.river_labels',
+      { id: 'label-water', type: 'symbol', source: 'riverLabels', 'source-layer': 'basemap.river_labels',
         minzoom: 9.5,
         layout: { 'text-field': ['get', 'name'], 'text-font': ITALIC, 'text-letter-spacing': 0.12,
                   'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 14, 14] },
         paint: { 'text-color': BASE.waterLabel, ...HALO } },
-      { id: 'label-park', type: 'symbol', source: 'parks', 'source-layer': 'core.parks', minzoom: 12.5,
+      { id: 'label-park', type: 'symbol', source: 'parks', 'source-layer': 'basemap.parks', minzoom: 12.5,
         filter: ['all', ['==', ['get', 'kind'], 'park'], ['has', 'name'],
                  ['>=', ['to-number', ['get', 'area_ha']], ['step', ['zoom'], 40, 14, 8, 15.5, 1]]],
         layout: { 'text-field': ['get', 'name'], 'text-font': ITALIC, 'text-size': 11, 'text-max-width': 8 },
         paint: { 'text-color': BASE.parkLabel, ...HALO } },
-      { id: 'label-street-minor', type: 'symbol', source: 'roadLabels', 'source-layer': 'core.road_labels',
+      { id: 'label-street-minor', type: 'symbol', source: 'roadLabels', 'source-layer': 'basemap.road_labels',
         minzoom: 14.5, filter: ['==', ['get', 'kind'], 'minor'],
         layout: { 'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': REGULAR,
                   'text-size': 10.5, 'symbol-spacing': 400 },
         paint: { 'text-color': BASE.labelSoft, ...HALO } },
-      { id: 'label-street-major', type: 'symbol', source: 'roadLabels', 'source-layer': 'core.road_labels',
+      { id: 'label-street-major', type: 'symbol', source: 'roadLabels', 'source-layer': 'basemap.road_labels',
         minzoom: 12.5, filter: ['==', ['get', 'kind'], 'major'],
         layout: { 'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-font': MEDIUM,
                   'text-size': ['interpolate', ['linear'], ['zoom'], 13, 10.5, 16, 12.5], 'symbol-spacing': 450 },
         paint: { 'text-color': BASE.label, ...HALO } },
       // Highway route numbers on a gold halo, a simplified shield.
-      { id: 'label-highway', type: 'symbol', source: 'roadLabels', 'source-layer': 'core.road_labels',
+      { id: 'label-highway', type: 'symbol', source: 'roadLabels', 'source-layer': 'basemap.road_labels',
         minzoom: 9, filter: ['in', ['get', 'kind'], ['literal', ['interstate', 'us', 'state']]],
         layout: { 'symbol-placement': 'line', 'symbol-spacing': ['step', ['zoom'], 350, 12, 500],
                   'text-field': ['get', 'label'], 'text-font': MEDIUM, 'text-size': 10.5,
                   'text-rotation-alignment': 'viewport', 'text-padding': 6,
                   'symbol-sort-key': ['match', ['get', 'kind'], 'interstate', 0, 'us', 1, 2] },
         paint: { 'text-color': '#4a3b12', 'text-halo-color': BASE.motorway, 'text-halo-width': 3 } },
-      { id: 'label-neighborhood', type: 'symbol', source: 'places', 'source-layer': 'core.places',
+      { id: 'label-neighborhood', type: 'symbol', source: 'places', 'source-layer': 'basemap.places',
         minzoom: 12.5, filter: ['>=', ['get', 'rank'], 4],
         layout: { 'text-field': ['get', 'name'], 'text-font': REGULAR, 'text-size': 11,
                   'text-transform': 'uppercase', 'text-letter-spacing': 0.08, 'text-max-width': 7 },
         paint: { 'text-color': BASE.labelSoft, ...HALO } },
-      { id: 'label-town', type: 'symbol', source: 'places', 'source-layer': 'core.places',
+      { id: 'label-town', type: 'symbol', source: 'places', 'source-layer': 'basemap.places',
         minzoom: 10, filter: ['<=', ['get', 'rank'], 3],
         layout: { 'text-field': ['get', 'name'], 'text-font': MEDIUM, 'text-max-width': 8,
                   'text-size': ['interpolate', ['linear'], ['zoom'], 10, ['match', ['get', 'rank'], 1, 14, 2, 11.5, 10.5],
                                 14, ['match', ['get', 'rank'], 1, 18, 2, 14, 13]],
                   'symbol-sort-key': ['get', 'rank'] },
         paint: { 'text-color': BASE.label, ...HALO } },
-      { id: 'landmark-dot', type: 'circle', source: 'landmarks', 'source-layer': 'core.landmarks', minzoom: 10.5,
+      { id: 'landmark-dot', type: 'circle', source: 'landmarks', 'source-layer': 'basemap.landmarks', minzoom: 10.5,
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3, 15, 5], 'circle-color': BASE.landmark,
                  'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } },
-      { id: 'label-landmark', type: 'symbol', source: 'landmarks', 'source-layer': 'core.landmarks', minzoom: 10.5,
+      { id: 'label-landmark', type: 'symbol', source: 'landmarks', 'source-layer': 'basemap.landmarks', minzoom: 10.5,
+        // Downtown landmarks sit a few blocks apart, so let each label try eight spots around its dot
+        // and keep a little padding, so neighbors drop out or move instead of touching.
         layout: { 'text-field': ['get', 'name'], 'text-font': MEDIUM, 'text-size': 11.5, 'text-max-width': 9,
-                  'text-variable-anchor': ['left', 'right', 'top', 'bottom'], 'text-radial-offset': 0.7,
-                  'text-justify': 'auto' },
+                  'text-variable-anchor': ['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+                  'text-radial-offset': 0.8, 'text-justify': 'auto', 'text-padding': 5 },
         paint: { 'text-color': BASE.landmark, ...HALO } },
     ],
   };
 }
 
-export const BASE_CREDIT = 'Basemap: OpenStreetMap contributors (ODbL), USGS NHD, U.S. Census TIGER/Line 2024. Labels set in Noto Sans (SIL OFL).';
+/**
+ * Short on-map credits (MapLibre's attribution control). The basemap draws OpenStreetMap and NHD data
+ * on every page, so those two are always included; pages add their own sources in between.
+ */
+export function mapCredits(...sources) {
+  const osm = '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>';
+  return [osm, ...sources, 'USGS NHD'].join(' · ');
+}
+
+// Appended to every page's panel credits. OpenStreetMap is credited here once (basemap and street
+// network), so pages should not list it again.
+export const BASE_CREDIT = 'OpenStreetMap contributors (ODbL). Basemap: USGS NHD, U.S. Census TIGER/Line 2024. Labels set in Noto Sans (SIL OFL).';

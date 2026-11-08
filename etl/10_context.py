@@ -2,15 +2,21 @@
 
 The analysis layers stop at the study boundary, and so did the basemap water. The county line
 runs down the middle of the Mississippi and Missouri, so half of each river was drawn as blank
-land. These layers give the maps context past the line:
+land. These layers give the maps context past the line.
 
-  core.hydro_context  river areas and lakes (NHD), clipped to a box ~15 km around the study
-                      area instead of the boundary, so both banks of the big rivers show
-  core.parks          OSM parks, nature reserves, golf courses and cemeteries, >= 1 ha
-  core.places         OSM place names: municipalities (city/town/village) and neighborhoods
-  core.landmarks      a short, hand-picked list of well-known features, located from OSM by name
-  core.road_labels    highway route numbers and major street names, merged into long lines
-  core.flood_display  FEMA flood zones merged by type for fast map tiles (display only)
+They live in their own `basemap` schema, not `core`: they are cartographic context only, never
+used in an analysis, and hydro_context deliberately extends past the study boundary, so they are
+kept out of the `core` boundary QC (etl/qc_report.py lists them separately).
+
+  basemap.hydro_context  river areas and lakes (NHD), clipped to a box ~15 km around the study
+                         area instead of the boundary, so both banks of the big rivers show
+  basemap.parks          OSM parks, nature reserves, golf courses and cemeteries, >= 1 ha
+  basemap.places         OSM place names: municipalities (city/town/village) and neighborhoods
+  basemap.landmarks      a short, hand-picked list of well-known features, located from OSM by name
+  basemap.road_labels    highway route numbers and major street names, merged into long lines
+  basemap.river_labels   hand-placed river name points
+  core.flood_display     FEMA flood zones merged by type for fast map tiles (display only; it
+                         stays in core because it is clipped like the flood zones it comes from)
 
 Reads the cached Missouri extract from 02_osm (GDAL's OSM driver, no osm2pgsql run) and the raw
 NHD tables from 06_hydro. Run 09_web_roles afterwards so pg_tileserv can read the new tables.
@@ -20,6 +26,7 @@ from common import (RAW_DIR, SRID, connect, ensure_schemas, log, main_guard, ogr
 
 PBF = RAW_DIR / "missouri-latest.osm.pbf"
 CONTEXT_BUFFER_M = 15000
+BASEMAP_TABLES = ("hydro_context", "parks", "places", "landmarks", "road_labels", "river_labels")
 
 # Landmarks: (label, kind, OSM name to look for, fallback lon, lat). The OSM match gives the
 # true location (polygon interior point); the fallback is used only if the name isn't found.
@@ -59,6 +66,9 @@ RIVERS = [
 def main() -> None:
     conn = connect()
     ensure_schemas(conn)
+    sql(conn, "CREATE SCHEMA IF NOT EXISTS basemap;")
+    # Before the basemap schema existed these tables were built in core; drop any old copies.
+    sql(conn, "".join(f"DROP TABLE IF EXISTS core.{t} CASCADE;" for t in BASEMAP_TABLES))
     if not PBF.exists():
         raise SystemExit(f"{PBF} is missing; run 02_osm first")
     xmin, ymin, xmax, ymax = study_bbox_4326(conn, buffer_m=1000)
@@ -80,8 +90,8 @@ def main() -> None:
     # Water past the study boundary. Raw NHD features are whole (06_hydro filters them by bbox,
     # not by clipping), so the big rivers are complete across the state line.
     sql(conn, f"""
-        DROP TABLE IF EXISTS core.hydro_context CASCADE;
-        CREATE TABLE core.hydro_context AS
+        DROP TABLE IF EXISTS basemap.hydro_context CASCADE;
+        CREATE TABLE basemap.hydro_context AS
         WITH box AS (SELECT ST_Envelope(ST_Buffer(geom, {CONTEXT_BUFFER_M})) AS g FROM core.study_boundary),
         src AS (
             SELECT 'river' AS kind, geom FROM raw.nhd_area
@@ -93,15 +103,15 @@ def main() -> None:
                (ST_Dump(ST_CollectionExtract(ST_Intersection(ST_MakeValid(s.geom), box.g), 3))).geom
                    ::geometry(Polygon, {SRID}) AS geom
         FROM src s, box WHERE ST_Intersects(s.geom, box.g);
-        DELETE FROM core.hydro_context WHERE ST_Area(geom) < 1;
-        ALTER TABLE core.hydro_context ADD COLUMN id bigserial PRIMARY KEY;
-        CREATE INDEX ON core.hydro_context USING gist (geom);
-        ANALYZE core.hydro_context;
+        DELETE FROM basemap.hydro_context WHERE ST_Area(geom) < 1;
+        ALTER TABLE basemap.hydro_context ADD COLUMN id bigserial PRIMARY KEY;
+        CREATE INDEX ON basemap.hydro_context USING gist (geom);
+        ANALYZE basemap.hydro_context;
     """)
 
     sql(conn, f"""
-        DROP TABLE IF EXISTS core.parks CASCADE;
-        CREATE TABLE core.parks AS
+        DROP TABLE IF EXISTS basemap.parks CASCADE;
+        CREATE TABLE basemap.parks AS
         WITH pieces AS (
             SELECT p.name,
                    CASE WHEN p.leisure = 'golf_course' THEN 'golf'
@@ -116,15 +126,15 @@ def main() -> None:
         )
         SELECT name, kind, round((ST_Area(geom) / 1e4)::numeric, 1) AS area_ha, geom
         FROM pieces WHERE ST_Area(geom) >= 10000;
-        ALTER TABLE core.parks ADD COLUMN id bigserial PRIMARY KEY;
-        CREATE INDEX ON core.parks USING gist (geom);
-        ANALYZE core.parks;
+        ALTER TABLE basemap.parks ADD COLUMN id bigserial PRIMARY KEY;
+        CREATE INDEX ON basemap.parks USING gist (geom);
+        ANALYZE basemap.parks;
     """)
 
     # Place names. Municipalities rank above neighborhoods so the map can thin labels by zoom.
     sql(conn, f"""
-        DROP TABLE IF EXISTS core.places CASCADE;
-        CREATE TABLE core.places AS
+        DROP TABLE IF EXISTS basemap.places CASCADE;
+        CREATE TABLE basemap.places AS
         SELECT DISTINCT ON (p.name, p.place) p.name, p.place,
                CASE p.place WHEN 'city' THEN 1 WHEN 'town' THEN 2 WHEN 'village' THEN 3
                             WHEN 'suburb' THEN 4 ELSE 5 END AS rank,
@@ -133,9 +143,9 @@ def main() -> None:
         JOIN core.study_boundary b ON ST_Intersects(p.geom, b.geom)
         WHERE p.place IN ('city', 'town', 'village', 'suburb', 'neighbourhood', 'quarter')
         ORDER BY p.name, p.place, p.osm_id;
-        ALTER TABLE core.places ADD COLUMN id bigserial PRIMARY KEY;
-        CREATE INDEX ON core.places USING gist (geom);
-        ANALYZE core.places;
+        ALTER TABLE basemap.places ADD COLUMN id bigserial PRIMARY KEY;
+        CREATE INDEX ON basemap.places USING gist (geom);
+        ANALYZE basemap.places;
     """)
 
     # Flood zones for display: FEMA's 6,000+ panel-cut polygons merged per zone type, then cut
@@ -160,8 +170,8 @@ def main() -> None:
     # Road labels: highways by route number and major streets by name, each merged into long
     # lines so a label can follow the road instead of repeating on every short OSM way.
     sql(conn, f"""
-        DROP TABLE IF EXISTS core.road_labels CASCADE;
-        CREATE TABLE core.road_labels AS
+        DROP TABLE IF EXISTS basemap.road_labels CASCADE;
+        CREATE TABLE basemap.road_labels AS
         WITH hw AS (
             SELECT CASE WHEN r LIKE 'I %' THEN 'interstate' WHEN r LIKE 'US %' THEN 'us'
                         ELSE 'state' END AS kind,
@@ -184,9 +194,9 @@ def main() -> None:
         SELECT kind, label, round(ST_Length(geom))::int AS length_m,
                ST_Simplify(geom, 5)::geometry(LineString, {SRID}) AS geom
         FROM merged WHERE ST_Length(geom) >= 400;
-        ALTER TABLE core.road_labels ADD COLUMN id bigserial PRIMARY KEY;
-        CREATE INDEX ON core.road_labels USING gist (geom);
-        ANALYZE core.road_labels;
+        ALTER TABLE basemap.road_labels ADD COLUMN id bigserial PRIMARY KEY;
+        CREATE INDEX ON basemap.road_labels USING gist (geom);
+        ANALYZE basemap.road_labels;
     """)
 
     # Landmarks: largest OSM polygon with the exact name, else a point, else the fallback.
@@ -209,33 +219,33 @@ def main() -> None:
             log(f"  landmark not found in OSM, using fallback: {osm_name}")
             rows.append((label, kind, "fallback", None, lon, lat))
     sql(conn, f"""
-        DROP TABLE IF EXISTS core.landmarks CASCADE;
-        CREATE TABLE core.landmarks (id serial PRIMARY KEY, name text, kind text, located_by text,
+        DROP TABLE IF EXISTS basemap.landmarks CASCADE;
+        CREATE TABLE basemap.landmarks (id serial PRIMARY KEY, name text, kind text, located_by text,
                                      geom geometry(Point, {SRID}));
-        DROP TABLE IF EXISTS core.river_labels CASCADE;
-        CREATE TABLE core.river_labels (id serial PRIMARY KEY, name text, geom geometry(Point, {SRID}));
+        DROP TABLE IF EXISTS basemap.river_labels CASCADE;
+        CREATE TABLE basemap.river_labels (id serial PRIMARY KEY, name text, geom geometry(Point, {SRID}));
     """)
     with conn.cursor() as cur:
         for r in rows:
             if r[2] == "fallback":
-                cur.execute(f"INSERT INTO core.landmarks (name, kind, located_by, geom) VALUES "
+                cur.execute(f"INSERT INTO basemap.landmarks (name, kind, located_by, geom) VALUES "
                             f"(%s, %s, %s, ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), {SRID}))",
                             (r[0], r[1], r[2], r[4], r[5]))
             else:
-                cur.execute("INSERT INTO core.landmarks (name, kind, located_by, geom) VALUES "
+                cur.execute("INSERT INTO basemap.landmarks (name, kind, located_by, geom) VALUES "
                             "(%s, %s, %s, %s::geometry)", r)
         for name, lon, lat in RIVERS:
-            cur.execute(f"INSERT INTO core.river_labels (name, geom) VALUES "
+            cur.execute(f"INSERT INTO basemap.river_labels (name, geom) VALUES "
                         f"(%s, ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), {SRID}))",
                         (name, lon, lat))
     conn.commit()
 
-    for t in ("hydro_context", "parks", "places", "landmarks", "road_labels", "flood_display"):
-        log(f"core.{t}: {sql(conn, f'SELECT count(*) FROM core.{t}')[0][0]} rows")
+    for t in [f"basemap.{name}" for name in BASEMAP_TABLES] + ["core.flood_display"]:
+        log(f"{t}: {sql(conn, f'SELECT count(*) FROM {t}')[0][0]} rows")
     log("places by type: " + ", ".join(f"{p} {n}" for p, n in sql(
-        conn, "SELECT place, count(*) FROM core.places GROUP BY 1 ORDER BY 2 DESC")))
+        conn, "SELECT place, count(*) FROM basemap.places GROUP BY 1 ORDER BY 2 DESC")))
     log("landmarks located by: " + ", ".join(f"{s} {n}" for s, n in sql(
-        conn, "SELECT located_by, count(*) FROM core.landmarks GROUP BY 1")))
+        conn, "SELECT located_by, count(*) FROM basemap.landmarks GROUP BY 1")))
 
 
 if __name__ == "__main__":

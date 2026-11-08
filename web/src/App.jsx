@@ -20,13 +20,13 @@ export default function App() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     setOpen(false);
-    document.title = `${TITLES[pathname] || 'Not found'} · St. Louis GIS Portfolio`;
+    document.title = `${TITLES[pathname] || 'Not found'} · Gateway Atlas`;
   }, [pathname]);
 
   return (
     <div className="app">
       <header className="site-header">
-        <NavLink to="/" className="brand">St. Louis GIS Portfolio</NavLink>
+        <NavLink to="/" className="brand">Gateway Atlas</NavLink>
         <button type="button" className="nav-toggle" aria-expanded={open} aria-controls="site-nav"
                 onClick={() => setOpen((o) => !o)}>Menu</button>
         <nav id="site-nav" className={open ? 'open' : ''}>
