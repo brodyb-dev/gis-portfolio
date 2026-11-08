@@ -8,7 +8,7 @@ const FEATURED = [
   { to: '/flood', title: 'Flood exposure', colors: [FLOOD.levee, FLOOD['500-yr'], FLOOD['100-yr'], '#16426e'],
     text: 'Buildings, road miles and transit stops in FEMA’s 100- and 500-year floodplains and behind the levees.' },
   { to: '/buildings', title: 'Building density', colors: RAMP.brick,
-    text: 'Half a million building footprints summarized into 500 m hexagons by count, ground coverage and height.' },
+    text: 'Half a million building footprints summarized into ⅓-mile hexagons by count, ground coverage and height.' },
 ];
 
 export default function Home() {

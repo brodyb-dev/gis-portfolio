@@ -30,7 +30,8 @@ WALK_LIMIT_S = 3.0  # acceptance criterion 5
 EXPECTED_LAYERS = {
     "core.study_boundary", "core.counties", "core.buildings", "core.roads", "core.rail_lines",
     "core.transit_stops", "core.transit_routes", "core.flood_zones", "core.hydro_areas",
-    "core.hydro_lines", "analysis.hex_buildings", "analysis.hex_network",
+    "core.hydro_lines", "core.hydro_context", "core.parks", "core.places", "core.landmarks",
+    "core.road_labels", "core.river_labels", "core.flood_z", "core.roads_z", "analysis.hex_buildings", "analysis.hex_network",
     "analysis.hex_transit", "analysis.building_transit", "analysis.flood_buildings",
     "analysis.flood_roads", "analysis.flood_stops", "qc.net_dead_ends",
     "qc.net_unnoded_crossings", "qc.net_overlaps", "qc.net_islands", "qc.net_oneway_traps",

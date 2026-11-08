@@ -9,6 +9,13 @@
 -- Both roles start from nothing: no access to raw, no write access anywhere.
 
 REVOKE ALL ON SCHEMA public FROM tiles_reader, api_reader;
+-- Start each run from no table access, so a layer dropped from the list below is unpublished.
+REVOKE ALL ON ALL TABLES IN SCHEMA core, analysis, net FROM tiles_reader, api_reader;
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'qc') THEN
+        REVOKE ALL ON ALL TABLES IN SCHEMA qc FROM tiles_reader, api_reader;
+    END IF;
+END $$;
 GRANT USAGE ON SCHEMA public TO tiles_reader, api_reader;  -- PostGIS and pgRouting live here
 
 -- Map layers ---------------------------------------------------------------------------------
@@ -16,13 +23,19 @@ GRANT USAGE ON SCHEMA core, analysis, qc TO tiles_reader;
 GRANT SELECT ON
     core.study_boundary, core.counties, core.buildings, core.roads, core.rail_lines,
     core.transit_stops, core.transit_routes, core.flood_zones, core.hydro_areas,
-    core.hydro_lines,
+    core.hydro_lines, core.hydro_context, core.parks, core.places, core.landmarks,
+    core.road_labels, core.river_labels,
     analysis.hex_buildings, analysis.hex_network, analysis.hex_transit,
     analysis.building_transit, analysis.flood_buildings, analysis.flood_roads,
     analysis.flood_stops,
     qc.net_dead_ends, qc.net_unnoded_crossings, qc.net_overlaps, qc.net_islands,
     qc.net_oneway_traps
 TO tiles_reader;
+-- Function layers (02_tile_functions.sql).
+REVOKE ALL ON FUNCTION core.roads_z(integer, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION core.roads_z(integer, integer, integer) TO tiles_reader;
+REVOKE ALL ON FUNCTION core.flood_z(integer, integer, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION core.flood_z(integer, integer, integer) TO tiles_reader;
 
 -- API ----------------------------------------------------------------------------------------
 GRANT USAGE ON SCHEMA core, analysis, net, qc TO api_reader;

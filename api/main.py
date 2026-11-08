@@ -194,9 +194,11 @@ def stats_transit_access():
             SELECT label, meters, buildings_straight_line, buildings_network, buildings_total,
                    pct_straight_line, pct_network, pct_overstated
             FROM analysis.transit_access_summary ORDER BY meters""")
-        detour = query("""
-            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY net_m / eucl_m)
-            FROM analysis.building_transit WHERE eucl_m > 50""")[0][0]
+        detour, med_net, med_eucl = query("""
+            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY net_m / eucl_m),
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY net_m),
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY eucl_m)
+            FROM analysis.building_transit WHERE eucl_m > 50""")[0]
         _static["transit"] = {
             "distances": [
                 {"label": l, "meters": round(float(m), 1), "buildings_total": t,
@@ -204,7 +206,8 @@ def stats_transit_access():
                  "network": {"buildings": n, "pct": round(float(pn), 1)},
                  "pct_overstated": round(float(po), 1)}
                 for l, m, s, n, t, ps, pn, po in rows],
-            "median_detour_ratio": round(float(detour), 2)}
+            "median_detour_ratio": round(float(detour), 2),
+            "median_walk_m": round(float(med_net)), "median_straight_line_m": round(float(med_eucl))}
     return _static["transit"]
 
 

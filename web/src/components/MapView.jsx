@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { baseStyle } from '../map/basemap.js';
+import { LABEL_LAYERS, baseStyle } from '../map/basemap.js';
 import { MAX_BOUNDS, STUDY_BOUNDS } from '../config.js';
 
 /**
@@ -12,6 +12,8 @@ import { MAX_BOUNDS, STUDY_BOUNDS } from '../config.js';
 export default function MapView({ setup, onReady, children, label = 'Map', bounds = STUDY_BOUNDS }) {
   const container = useRef(null);
   const [map, setMap] = useState(null);
+  const [labels, setLabels] = useState(true);
+  const [busy, setBusy] = useState(true);  // tiles still loading
   const setupRef = useRef(setup);
   setupRef.current = setup;
   const readyRef = useRef(onReady);
@@ -33,6 +35,9 @@ export default function MapView({ setup, onReady, children, label = 'Map', bound
     m.touchZoomRotate.disableRotation();
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     m.addControl(new maplibregl.ScaleControl({ unit: 'imperial' }), 'bottom-right');
+    // Say so while tiles are on their way, so a half-drawn layer doesn't read as missing data.
+    m.on('dataloading', () => setBusy(true));
+    m.on('idle', () => setBusy(false));
     m.on('load', () => {
       setupRef.current?.(m);
       setMap(m);
@@ -41,17 +46,28 @@ export default function MapView({ setup, onReady, children, label = 'Map', bound
     return () => m.remove();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => { if (map) setVisible(map, LABEL_LAYERS, labels); }, [map, labels]);
+
   return (
     <div className="map-wrap">
       <div ref={container} className="map" role="region" aria-label={label} />
+      {map && (
+        <button type="button" className="map-labels-btn" aria-pressed={labels}
+                onClick={() => setLabels((v) => !v)}
+                title="Show or hide street, place and landmark names">
+          {labels ? 'Hide labels' : 'Show labels'}
+        </button>
+      )}
       {children}
       {!map && <div className="map-loading">Loading map…</div>}
+      {map && busy && <div className="map-busy" role="status"><span className="spinner" aria-hidden="true" />Loading map data…</div>}
     </div>
   );
 }
 
 /** Show or hide a set of layers. */
 export function setVisible(map, ids, on) {
+  if (!map.style) return;  // map already removed (unmount, or a dev hot reload)
   for (const id of [].concat(ids)) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   }

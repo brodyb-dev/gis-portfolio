@@ -3,7 +3,7 @@ import MapView, { clickPopup, setVisible } from '../components/MapView.jsx';
 import { Legend, MapPanel, Segmented, Stat, Toggle } from '../components/Panel.jsx';
 import { ISO, QC, RAMP, TRANSIT, stepColor, stepLegend } from '../map/palette.js';
 import { tileSource } from '../config.js';
-import { fmt, getJSON, useApi } from '../api.js';
+import { M_PER_MI, SQMI_PER_KM2, fmt, getJSON, useApi } from '../api.js';
 
 const MODES = [
   { value: 'transit', label: 'Transit access' },
@@ -24,7 +24,11 @@ const DIST = { q: { label: '¼ mile', net: 'q_mile_net', eucl: 'q_mile_eucl' },
                h: { label: '½ mile', net: 'h_mile_net', eucl: 'h_mile_eucl' } };
 const SHARE_BREAKS = [0.1, 0.25, 0.5, 0.75, 0.9];
 const GAP_BREAKS = [0.05, 0.1, 0.2, 0.3, 0.4];
-const WALK_BREAKS = [200, 400, 800, 1600, 3200];
+// Walk distance classes: 1/8, 1/4, 1/2, 1 and 2 miles (stored in meters).
+const WALK_MILES = [0.125, 0.25, 0.5, 1, 2];
+const WALK_BREAKS = WALK_MILES.map((mi) => mi * M_PER_MI);
+const MILE_LABEL = { 0.125: '⅛ mi', 0.25: '¼ mi', 0.5: '½ mi', 1: '1 mi', 2: '2 mi' };
+const HEX_OPACITY = ['interpolate', ['linear'], ['zoom'], 9, 0.8, 12, 0.7, 13.5, 0.6, 14.5, 0];
 const share = (prop) => ['/', ['to-number', ['get', prop], 0], ['max', ['to-number', ['get', 'buildings'], 0], 1]];
 function transitColor(measure, dist) {
   const d = DIST[dist];
@@ -37,13 +41,13 @@ const pctFmt = (v) => `${Math.round(v * 100)}%`;
 
 // Street network metrics, per hex.
 const NET = {
-  inter: { label: 'Intersections', title: 'Intersections per km²', prop: 'intersections_per_km2',
-           breaks: [10, 20, 40, 60, 90], fmt: (v) => v },
+  inter: { label: 'Intersections', title: 'Intersections per square mile', prop: 'intersections_per_km2',
+           scale: 1 / SQMI_PER_KM2, breaks: [25, 50, 100, 150, 250], fmt: (v) => v },
   dead: { label: 'Dead ends', title: 'Dead-end share of street nodes', prop: 'dead_end_share',
           breaks: [0.05, 0.1, 0.2, 0.33, 0.5], fmt: pctFmt },
 };
 const netColor = (k) => ['case', ['>', ['to-number', ['get', 'intersections'], 0], 0],
-  stepColor(['to-number', ['get', NET[k].prop], 0], NET[k].breaks, RAMP.slate), 'rgba(0,0,0,0)'];
+  stepColor(['*', ['to-number', ['get', NET[k].prop], 0], NET[k].scale || 1], NET[k].breaks, RAMP.slate), 'rgba(0,0,0,0)'];
 
 const ISO_EMPTY = { type: 'FeatureCollection', features: [] };
 
@@ -57,8 +61,7 @@ function setup(map) {
   map.addSource('stops', tileSource('core.transit_stops', { properties: ['stop_name', 'is_rail', 'weekday_departures', 'routes'], maxzoom: 14 }));
   map.addLayer({ id: 'transit-hex', type: 'fill', source: 'hex-transit', 'source-layer': 'analysis.hex_transit',
     maxzoom: 14.5,
-    paint: { 'fill-color': transitColor('net', 'q'),
-             'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.85, 14.5, 0] } }, 'roads-anchor');
+    paint: { 'fill-color': transitColor('net', 'q'), 'fill-opacity': HEX_OPACITY } }, 'roads-anchor');
   map.addLayer({ id: 'transit-bldg', type: 'circle', source: 'bldg-transit', 'source-layer': 'analysis.building_transit',
     minzoom: 14,
     paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 2, 17, 5],
@@ -71,7 +74,7 @@ function setup(map) {
     maxzoom: 14 }));
   map.addLayer({ id: 'net-hex', type: 'fill', source: 'hex-network', 'source-layer': 'analysis.hex_network',
     layout: { visibility: 'none' },
-    paint: { 'fill-color': netColor('inter'), 'fill-opacity': 0.85 } }, 'roads-anchor');
+    paint: { 'fill-color': netColor('inter'), 'fill-opacity': HEX_OPACITY } }, 'roads-anchor');
 
   // QC findings
   const qc = (id, layer, props, extra) => {
@@ -127,15 +130,16 @@ function setup(map) {
   clickPopup(map, 'transit-hex', (p) => p.buildings > 0 ? `
     <strong>${fmt.int(p.buildings)} buildings</strong><br>
     Within ¼ mile: ${pctFmt(p.q_mile_net / p.buildings)} walking vs. ${pctFmt(p.q_mile_eucl / p.buildings)} straight line<br>
-    Median walk to a stop: ${fmt.int(p.median_net_m)} m (${fmt.num(p.median_detour_ratio, 2)}× straight line)` : 'No buildings');
-  clickPopup(map, 'transit-bldg', (p) => `Walk to nearest stop: <strong>${fmt.int(p.net_m)} m</strong><br>Straight line: ${fmt.int(p.eucl_m)} m`);
-  clickPopup(map, 'net-hex', (p) => `<strong>${fmt.int(p.intersections)} intersections</strong>, ${fmt.int(p.dead_ends)} dead ends<br>${fmt.num(p.intersections_per_km2)} per km² · ${fmt.num(p.street_km_per_km2)} street km per km²`);
-  const deadPopup = (p) => `<strong>Dead end</strong> on ${p.name || p.road_class}<br>${p.near_miss_m != null ? `Near miss: ${fmt.num(p.near_miss_m)} m from another edge (likely missing connection)` : 'No other edge within 3 m'}`;
+    Typical walk to a stop: ${fmt.dist(p.median_net_m)}, ${fmt.num(p.median_detour_ratio, 2)}× the straight-line distance` : 'No buildings');
+  clickPopup(map, 'transit-bldg', (p) => `Walk to nearest stop: <strong>${fmt.dist(p.net_m)}</strong><br>Straight line: ${fmt.dist(p.eucl_m)}`);
+  // street km per km2 x 1.609 = street miles per square mile
+  clickPopup(map, 'net-hex', (p) => `<strong>${fmt.int(p.intersections)} intersections</strong>, ${fmt.int(p.dead_ends)} dead ends<br>${fmt.int(p.intersections_per_km2 / SQMI_PER_KM2)} per sq mi · ${fmt.num(p.street_km_per_km2 * 1.609344)} street miles per sq mi`);
+  const deadPopup = (p) => `<strong>Dead end</strong> on ${p.name || p.road_class}<br>${p.near_miss_m != null ? `Near miss: ${fmt.dist(p.near_miss_m)} from another street (likely a missing connection)` : 'No other street within 10 ft'}`;
   clickPopup(map, 'qc-dead', deadPopup);
   clickPopup(map, 'qc-near', deadPopup);
   clickPopup(map, 'qc-cross', (p) => `<strong>Crossing with no shared node</strong><br>${p.kind}: ${p.class_a} × ${p.class_b}`);
-  clickPopup(map, 'qc-overlaps', (p) => `<strong>Duplicated way</strong><br>${p.class_a} / ${p.class_b}, ${fmt.int(p.overlap_m)} m overlap`);
-  clickPopup(map, 'qc-islands', (p) => `<strong>${p.mode} island</strong><br>${fmt.int(p.edges)} edges, ${fmt.num(p.length_m / 1000, 2)} km, not joined to the main network`);
+  clickPopup(map, 'qc-overlaps', (p) => `<strong>Duplicated way</strong><br>${p.class_a} / ${p.class_b}, ${fmt.ft(p.overlap_m)} overlap`);
+  clickPopup(map, 'qc-islands', (p) => `<strong>${p.mode} island</strong><br>${fmt.int(p.edges)} edges, ${fmt.mi(p.length_m, 2)}, not joined to the main network`);
   clickPopup(map, 'qc-traps', () => '<strong>One-way trap</strong><br>Reachable by car but no legal way back out (or the reverse)');
 }
 
@@ -233,8 +237,8 @@ export default function Transportation() {
                       items={stepLegend(GAP_BREAKS, RAMP.plum, pctFmt)} />
             : <Legend title={`Share of buildings within ${d.label} of a stop (${measure === 'net' ? 'walking the network' : 'straight line'})`}
                       items={stepLegend(SHARE_BREAKS, RAMP.teal, pctFmt)} />}
-          <Legend title="Walk to nearest stop, zoom 14+ (m)" kind="circle"
-                  items={stepLegend(WALK_BREAKS, [...RAMP.teal].reverse(), (v) => v.toLocaleString('en-US'))} />
+          <Legend title="Each building's walk to the nearest stop, zoom 14+" kind="circle"
+                  items={stepLegend(WALK_MILES, [...RAMP.teal].reverse(), (v) => MILE_LABEL[v])} />
           {access && <AccessTable access={access} />}
         </>}
 
@@ -248,10 +252,10 @@ export default function Transportation() {
           {iso.status === 'done' && (
             <div className="stats">
               {[...iso.data.features].reverse().map((f) => (
-                <Stat key={f.properties.minutes} value={`${fmt.num(f.properties.area_km2, 2)} km²`}
+                <Stat key={f.properties.minutes} value={fmt.sqmi(f.properties.area_km2)}
                       label={`within ${f.properties.minutes} min`} />
               ))}
-              <p className="fine">Computed in {iso.data.elapsed_ms} ms{iso.data.cached ? ' (cached)' : ''}; start snapped {fmt.int(iso.data.snap_distance_m)} m.</p>
+              <p className="fine">Computed in {iso.data.elapsed_ms} ms{iso.data.cached ? ' (cached)' : ''}; start moved {fmt.dist(iso.data.snap_distance_m)} to the nearest street.</p>
             </div>
           )}
         </>}
@@ -260,17 +264,17 @@ export default function Transportation() {
           <Segmented label="Metric" value={netMetric} onChange={setNetMetric}
                      options={Object.entries(NET).map(([value, x]) => ({ value, label: x.label }))} />
           <Legend title={NET[netMetric].title} items={stepLegend(NET[netMetric].breaks, RAMP.slate, NET[netMetric].fmt)}
-                  note="500 m hexagons. Streets exclude driveways, parking aisles and alleys." />
+                  note="Hexagons about ⅓ mile across. Streets exclude driveways, parking aisles and alleys." />
           {network && <div className="stats">
             <Stat value={fmt.int(network.metrics.intersections)} label="intersections" />
-            <Stat value={fmt.num(network.metrics.intersections_per_km2)} label="per km²" />
+            <Stat value={fmt.int(network.metrics.intersections_per_km2 / SQMI_PER_KM2)} label="per sq mi" />
             <Stat value={fmt.pct(network.metrics.dead_end_share_pct)} label="dead ends" />
           </div>}
         </>}
 
         {mode === 'qc' && <>
           <Legend title="Network QC findings" kind="circle" items={[
-            { color: QC.near_miss, label: 'Near miss: dead end ≤ 3 m from another street' },
+            { color: QC.near_miss, label: 'Near miss: dead end within 10 ft of another street' },
             { color: QC.dead_end, label: 'Other dead end (zoom 12+)' },
             { color: QC.crossing, label: 'Crossing with no shared node', kind: 'ring' },
             { color: QC.trap, label: 'One-way trap' },
@@ -312,18 +316,22 @@ function AccessTable({ access }) {
           </tr>
         ))}
       </tbody>
-      <tfoot><tr><td colSpan={4}>The median building's walk to its nearest stop is {access.median_detour_ratio}× the straight-line distance.</td></tr></tfoot>
+      <tfoot><tr><td colSpan={4}>
+        For the typical (median) building, the walk to the nearest stop is
+        {access.median_walk_m ? <> about <strong>{fmt.dist(access.median_walk_m)}</strong> on the streets versus {fmt.dist(access.median_straight_line_m)} as the crow flies, so</> : ''} the
+        real walk is <strong>{access.median_detour_ratio}×</strong> ({Math.round((access.median_detour_ratio - 1) * 100)}%) longer than a straight-line buffer assumes.
+      </td></tr></tfoot>
     </table>
   );
 }
 
 function HowTransport({ mode }) {
   if (mode === 'iso') return <>
-    <p>The street network was built in PostGIS from OpenStreetMap ways, split where ways share a node, and routed with pgRouting. Walking is 1.34 m/s (3 mph) on any walkable way; driving uses posted speeds or road-class defaults and respects one-way streets. Drive times are free-flow, with no traffic.</p>
+    <p>The street network was built in PostGIS from OpenStreetMap ways, split where ways share a node, and routed with pgRouting. Walking is 3 mph on any walkable way; driving uses posted speeds or road-class defaults and respects one-way streets. Drive times are free-flow, with no traffic.</p>
     <p>Each click runs <code>pgr_dijkstraCost</code> from the nearest network node, and each band is a concave hull of the nodes reached in time, slightly smoothed.</p>
   </>;
-  if (mode === 'network') return <p>Intersections are street nodes where three or more streets meet; dead ends have one. Both are counted per 500 m hexagon from the routable network, leaving out driveways, parking aisles and alleys.</p>;
-  if (mode === 'qc') return <p>A data-production QC pass over the routable network. Dead ends within 3 m of another street are likely missing connections (undershoots). Crossings with no shared node on the same layer are either missing junctions or missing bridge tags. Islands are pieces not joined to the main network, and one-way traps are places a car can enter but not leave. Dead ends at the study boundary are clipping artifacts and are hidden.</p>;
+  if (mode === 'network') return <p>Intersections are street nodes where three or more streets meet; dead ends have one. Both are counted per hexagon (about ⅓ mile across) from the routable network, leaving out driveways, parking aisles and alleys.</p>;
+  if (mode === 'qc') return <p>A data-production QC pass over the routable network. Dead ends within 3 m (10 ft) of another street are likely missing connections (undershoots). Crossings with no shared node on the same layer are either missing junctions or missing bridge tags. Islands are pieces not joined to the main network, and one-way traps are places a car can enter but not leave. Dead ends at the study boundary are clipping artifacts and are hidden.</p>;
   return <>
     <p>Every building was snapped to the nearest walkable street, and one Dijkstra run from all stops with weekday service gave each building its walking distance to the nearest stop. That was compared with the usual straight-line buffer around stops.</p>
     <p>Straight-line buffers count buildings across rivers, rail yards, highways and dead-end subdivisions that a real walk can't cross in that distance, so they overstate access.</p>

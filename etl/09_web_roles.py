@@ -18,6 +18,7 @@ from common import REPO, connect, log, main_guard, sql
 
 ROLES = {"tiles_reader": "TILES_DB_PASSWORD", "api_reader": "API_DB_PASSWORD"}
 GRANTS = REPO / "db" / "serving" / "01_web_roles.sql"
+FUNCTIONS = REPO / "db" / "serving" / "02_tile_functions.sql"
 
 
 def password(var: str) -> str:
@@ -44,6 +45,7 @@ def main() -> None:
         log(f"{'created' if verb == 'CREATE' else 'updated'} role {role}")
     sql(conn, pgsql.SQL("GRANT CONNECT ON DATABASE {} TO tiles_reader, api_reader")
         .format(pgsql.Identifier(conn.info.dbname)))
+    sql(conn, FUNCTIONS.read_text())
     sql(conn, GRANTS.read_text())
     layers = sql(conn, """
         SELECT count(*) FROM information_schema.role_table_grants

@@ -3,27 +3,29 @@ import MapView, { clickPopup } from '../components/MapView.jsx';
 import { Legend, MapPanel, Segmented, Stat } from '../components/Panel.jsx';
 import { BASE, RAMP, stepColor, stepLegend } from '../map/palette.js';
 import { tileSource } from '../config.js';
-import { fmt, useApi } from '../api.js';
+import { FT_PER_M, SQMI_PER_KM2, fmt, useApi } from '../api.js';
 
 const METRICS = {
   density: {
-    label: 'Count', title: 'Buildings per km²', prop: 'bldg_per_km2',
-    breaks: [50, 150, 300, 600, 1000], fmt: (v) => v.toLocaleString('en-US'),
+    label: 'Count', title: 'Buildings per square mile', prop: 'bldg_per_km2', scale: 1 / SQMI_PER_KM2,
+    breaks: [125, 400, 800, 1500, 2500], fmt: (v) => v.toLocaleString('en-US'),
   },
   coverage: {
     label: 'Area', title: 'Footprint coverage (% of hex)', prop: 'coverage_pct',
     breaks: [2, 5, 10, 15, 20], fmt: (v) => `${v}%`,
   },
   height: {
-    label: 'Height', title: 'Tall buildings (90th-pct height, m)', prop: 'p90_height_m',
-    breaks: [5.5, 6.5, 8, 12, 25], fmt: (v) => `${v} m`, minCount: 10,
+    label: 'Height', title: 'Tall buildings (90th-percentile height)', prop: 'p90_height_m', scale: FT_PER_M,
+    breaks: [18, 22, 26, 40, 80], fmt: (v) => `${v} ft`, minCount: 10,
   },
 };
-const HEIGHT_BREAKS = [4, 6, 9, 15, 30];
+const HEIGHT_BREAKS = [13, 20, 30, 50, 100];  // feet
+const HEX_NOTE = 'Hexagons 500 m (about ⅓ mile) across, 54 acres each; zoom 9–14';
 const HEX_FADE = ['interpolate', ['linear'], ['zoom'], 13, 0.85, 14.5, 0];
 
 function hexColor(m) {
-  const color = stepColor(['to-number', ['get', m.prop], 0], m.breaks, RAMP.brick);
+  const value = ['*', ['to-number', ['get', m.prop], 0], m.scale || 1];
+  const color = stepColor(value, m.breaks, RAMP.brick);
   const enough = ['>=', ['get', 'bldg_count'], m.minCount || 1];
   return ['case', enough, color, 'rgba(0,0,0,0)'];
 }
@@ -48,19 +50,19 @@ function setup(map) {
     id: 'bldg-fill', type: 'fill', source: 'bldg', 'source-layer': 'core.buildings', minzoom: 13,
     paint: {
       'fill-color': ['case', ['has', 'height_m'],
-        stepColor(['get', 'height_m'], HEIGHT_BREAKS, RAMP.brick), BASE.building],
+        stepColor(['*', ['get', 'height_m'], FT_PER_M], HEIGHT_BREAKS, RAMP.brick), BASE.building],
       'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 14, 0.95],
       'fill-outline-color': 'rgba(95,36,18,0.35)',
     },
   }, 'top-anchor');
   clickPopup(map, 'hex-fill', (p) => `
-    <strong>${fmt.int(p.bldg_count)} buildings</strong> in this 500 m hex<br>
-    ${fmt.int(p.bldg_per_km2)} per km² · ${fmt.num(p.coverage_pct)}% covered<br>
-    Median height ${p.median_height_m ? fmt.num(p.median_height_m) + ' m' : '—'},
-    90th pct ${p.p90_height_m ? fmt.num(p.p90_height_m) + ' m' : '—'}`);
+    <strong>${fmt.int(p.bldg_count)} buildings</strong> in this hexagon<br>
+    ${fmt.int(p.bldg_per_km2 / SQMI_PER_KM2)} per sq mi · ${fmt.num(p.coverage_pct)}% covered<br>
+    Median height ${p.median_height_m ? fmt.ft(p.median_height_m) : '—'},
+    90th pct ${p.p90_height_m ? fmt.ft(p.p90_height_m) : '—'}`);
   clickPopup(map, 'bldg-fill', (p) => `
     <strong>${p.bldg_class || 'Building'}</strong><br>
-    Height: ${p.height_m ? fmt.num(p.height_m) + ' m' : 'not in source'}`);
+    Height: ${p.height_m ? fmt.ft(p.height_m) : 'not in source'}`);
 }
 
 export default function Buildings() {
@@ -81,16 +83,16 @@ export default function Buildings() {
         lede="Where St. Louis is built up, how much ground buildings cover, and where the tall ones are. Zoom in past the hexagons to see individual footprints colored by height."
         credits="Overture Maps buildings (ODbL), U.S. Census TIGER/Line 2024."
         how={<>
-          <p>500,066 Overture building footprints were loaded into PostGIS and projected to NAD83 / UTM 15N (EPSG:26915). A 500 m grid from <code>ST_HexagonGrid</code> was clipped to the study area, and each building was counted in the hex that holds its interior point.</p>
+          <p>500,066 Overture building footprints were loaded into PostGIS and projected to NAD83 / UTM 15N (EPSG:26915). A grid of hexagons 500 m (about ⅓ mile) across from <code>ST_HexagonGrid</code> was clipped to the study area, and each building was counted in the hex that holds its interior point.</p>
           <p>Coverage is footprint area over hex area. Height uses the 90th percentile so a single tower doesn't dominate a hex; hexes with fewer than 10 buildings are left blank for height. Hex areas include the rivers, so river hexes read low.</p>
         </>}
       >
         <Segmented label="Hexagon measure" value={metric} onChange={setMetric}
                    options={Object.entries(METRICS).map(([value, x]) => ({ value, label: x.label }))} />
         <Legend title={m.title} items={stepLegend(m.breaks, RAMP.brick, m.fmt)}
-                note="500 m hexagons, zoom 9–14" />
-        <Legend title="Building height (m), zoom 14+"
-                items={[...stepLegend(HEIGHT_BREAKS, RAMP.brick, (v) => `${v}`),
+                note={HEX_NOTE} />
+        <Legend title="Building height, zoom 14+"
+                items={[...stepLegend(HEIGHT_BREAKS, RAMP.brick, (v) => `${v} ft`),
                         { color: BASE.building, label: 'No height in source' }]} />
         {data && (
           <div className="stats">
@@ -98,7 +100,7 @@ export default function Buildings() {
               <div key={a.area} className="stat-group">
                 <h2>{a.area}</h2>
                 <Stat value={fmt.int(a.buildings)} label="buildings" />
-                <Stat value={fmt.int(a.buildings_per_km2)} label="per km²" />
+                <Stat value={fmt.int(a.buildings_per_km2 / SQMI_PER_KM2)} label="per sq mi" />
                 <Stat value={fmt.pct(a.coverage_pct)} label="covered" />
               </div>
             ))}

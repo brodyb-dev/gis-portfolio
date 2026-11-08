@@ -16,14 +16,14 @@ const OVERLAYS = {
 };
 
 function setup(map) {
-  map.addSource('zones', tileSource('core.flood_zones', { properties: ['flood_class', 'fld_zone', 'zone_subty'], maxzoom: 15 }));
+  map.addSource('zones', tileSource('core.flood_z', { maxzoom: 15 }));
   map.addSource('fbldg', tileSource('analysis.flood_buildings', { properties: ['flood_class', 'height_m', 'area_m2'], minzoom: 12 }));
   map.addSource('froads', tileSource('analysis.flood_roads', { properties: ['flood_class', 'road_class', 'name', 'length_m'] }));
   map.addSource('fstops', tileSource('analysis.flood_stops', { properties: ['flood_class', 'stop_name', 'routes', 'weekday_departures', 'is_rail'] }));
 
-  map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', 'source-layer': 'core.flood_zones',
+  map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', 'source-layer': 'core.flood_z',
     paint: { 'fill-color': byClass(FLOOD), 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.75, 15, 0.45] } }, 'roads-anchor');
-  map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', 'source-layer': 'core.flood_zones', minzoom: 12,
+  map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', 'source-layer': 'core.flood_z', minzoom: 12,
     paint: { 'line-color': byClass(FLOOD_DARK), 'line-width': 0.6, 'line-opacity': 0.6 } }, 'roads-anchor');
   map.addLayer({ id: 'flood-roads', type: 'line', source: 'froads', 'source-layer': 'analysis.flood_roads',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -36,7 +36,7 @@ function setup(map) {
              'circle-stroke-color': byClass(FLOOD_DARK), 'circle-stroke-width': 2.5 } }, 'top-anchor');
 
   clickPopup(map, 'flood-stops', (p) => `<strong>${p.stop_name}</strong><br>${LABEL[p.flood_class]}<br>${fmt.int(p.weekday_departures)} weekday departures · Routes: ${p.routes || '—'}`);
-  clickPopup(map, 'flood-bldg', (p) => `<strong>Building</strong> in the ${LABEL[p.flood_class].toLowerCase()}<br>${fmt.int(p.area_m2)} m² footprint${p.height_m ? `, ${fmt.num(p.height_m)} m tall` : ''}`);
+  clickPopup(map, 'flood-bldg', (p) => `<strong>Building</strong> in the ${LABEL[p.flood_class].toLowerCase()}<br>${fmt.sqft(p.area_m2)} footprint${p.height_m ? `, ${fmt.ft(p.height_m)} tall` : ''}`);
   clickPopup(map, 'flood-roads', (p) => `<strong>${p.name || p.road_class}</strong><br>${LABEL[p.flood_class]}`);
   clickPopup(map, 'zones-fill', (p) => `<strong>${LABEL[p.flood_class]}</strong><br>FEMA zone ${p.fld_zone}${p.zone_subty ? ` · ${p.zone_subty.toLowerCase()}` : ''}`);
 }
@@ -88,7 +88,40 @@ export default function Flood() {
             </tbody>
           </table>
         )}
+        <FloodHistory />
       </MapPanel>
     </div>
+  );
+}
+
+// Crest stages from the National Weather Service (Mississippi at St. Louis, gauge EADM7; Meramec
+// at Valley Park and Arnold). Flood stage at St. Louis is 30 ft; the floodwall is built to 52 ft.
+const CRESTS = [
+  { year: '1785', stage: '42.0 ft', text: <>"L'année des grandes eaux," the year of the great waters, about 20 years after St. Louis was founded. It is the oldest crest on the Weather Service's list.</> },
+  { year: '1844', stage: '41.3 ft', text: <>The Great Flood of 1844 covered the riverfront and the Illinois bottomlands across the river. It was the benchmark for more than a century.</> },
+  { year: '1973', stage: '43.2 ft', text: <>A new record in April 1973. The city's 11-mile riverfront floodwall, designed to hold back 52 ft, was dedicated the next year.</> },
+  { year: '1993', stage: '49.6 ft', text: <>The Great Flood: the record crest of 49.58 ft on August 1. The floodwall held downtown. On the Missouri River a levee break flooded the Chesterfield Valley, which was rebuilt behind a bigger levee. That valley is the largest purple area on this map.</> },
+  { year: '2015', stage: 'Meramec', text: <>On New Year's Eve the Meramec set records at Valley Park (44.1 ft) and Arnold (47.3 ft), after heavy December rain. In May 2017 it came within a foot of those records again. Much of that damage was outside the Mississippi floodplain people usually picture.</> },
+  { year: '2019', stage: '46.0 ft', text: <>The second-highest crest on record at St. Louis, in June 2019.</> },
+];
+
+function FloodHistory() {
+  return (
+    <section className="history">
+      <h2>What "500-year" means</h2>
+      <p>The names describe odds, not a schedule. Land in the <strong>100-year</strong> zone has a 1% chance of flooding in any year, about <strong>26%</strong> over a 30-year mortgage. The <strong>500-year</strong> zone has a 0.2% chance a year, about <strong>6%</strong> over 30 years. Land behind a levee is mapped separately because a levee can be overtopped or fail.</p>
+      <p>The zones look large next to the rivers, but they are a small part of the map. Leaving out the river channels, all three zones together cover about 13% of the land in the City and County. The 500-year band alone is about 2%. Much of the 100-year zone you see is the rivers themselves.</p>
+      <h2>Major floods in St. Louis</h2>
+      <ol className="timeline">
+        {CRESTS.map((c) => (
+          <li key={c.year}>
+            <span className="tl-year">{c.year}</span>
+            <span className="tl-stage">{c.stage}</span>
+            <p>{c.text}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="fine">Stages are Mississippi River crests at the St. Louis gauge (flood stage 30 ft) unless noted. Source: National Weather Service St. Louis (historic crests; Great Flood of 1993; December 2015 flooding report).</p>
+    </section>
   );
 }

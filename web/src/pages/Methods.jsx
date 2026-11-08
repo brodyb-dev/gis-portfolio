@@ -7,6 +7,8 @@ const SOURCES = [
   ['Transit', 'Metro St. Louis GTFS feed (stops, routes, one sample weekday of departures)', 'Metro open data terms', 'etl/04_gtfs.py'],
   ['Flood zones', 'FEMA National Flood Hazard Layer (map service, layer 28)', 'Public domain', 'etl/05_flood.py'],
   ['Water', 'USGS National Hydrography Dataset (HUC8 GeoPackages)', 'Public domain', 'etl/06_hydro.py'],
+  ['Basemap reference: parks, place names, landmarks, whole rivers', 'OpenStreetMap (same extract, read with GDAL) and USGS NHD', 'ODbL / public domain', 'etl/10_context.py'],
+  ['Label font', 'Noto Sans glyphs (Protomaps basemaps-assets)', 'SIL Open Font License', 'web/public/fonts/README.md'],
 ];
 
 const ANALYSES = [
@@ -31,8 +33,8 @@ export default function Methods() {
 
       <h2>Study area and projection</h2>
       <p>
-        St. Louis City and St. Louis County, Missouri (FIPS 29510 and 29189), about 1,528 km². Every layer is clipped to
-        this boundary and stored in <strong>NAD83 / UTM zone 15N (EPSG:26915)</strong>, so distances and areas are in true meters.
+        St. Louis City and St. Louis County, Missouri (FIPS 29510 and 29189), about 590 square miles. Every layer is clipped to
+        this boundary and stored in <strong>NAD83 / UTM zone 15N (EPSG:26915)</strong>, so distances and areas are measured in true meters. The site converts them to miles, feet and square miles for display.
         Layers are reprojected to Web Mercator only when tiles are drawn.
       </p>
 
@@ -53,7 +55,7 @@ export default function Methods() {
       <p>
         The routable walk and drive network is built from the OpenStreetMap roads by splitting ways where they share a node, which keeps
         overpasses from joining the roads below them, and wiring the pieces with pgRouting (<File path="etl/07_network.py" />).
-        Walking is 1.34 m/s on any walkable way. Driving uses posted speeds where tagged and road-class defaults elsewhere, with one-way streets.
+        Walking is 3 mph (1.34 m/s) on any walkable way. Driving uses posted speeds where tagged and road-class defaults elsewhere, with one-way streets.
       </p>
 
       <h2>Analyses</h2>

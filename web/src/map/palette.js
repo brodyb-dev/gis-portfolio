@@ -2,26 +2,41 @@
 // The basemap is a warm, quiet "paper" so the thematic layers carry the color.
 
 export const BASE = {
-  outside: '#e4e0d6',     // land outside the study area
-  land: '#f6f3ec',
-  water: '#a8c6d6',
-  waterLine: '#8db1c6',
-  boundary: '#6f655a',
-  motorway: '#b8a593',
-  major: '#cdbfb0',       // trunk, primary
-  minor: '#dbd1c5',       // secondary, tertiary
-  local: '#e6dfd5',
-  path: '#d9cfc2',
-  rail: '#a39a90',
-  building: '#ddd5ca',
+  // Muted, park-map tones (sage, slate blue, soft gold) kept light so thematic layers read on top.
+  outside: '#e9e7e1',     // land outside the study area
+  land: '#f7f6f2',
+  water: '#a9c1d3',
+  waterLine: '#8fadc4',
+  waterLabel: '#3f5f80',
+  park: '#dbe6c9',
+  golf: '#e2ead3',
+  cemetery: '#e3e6da',
+  parkLabel: '#4d6b45',
+  boundary: '#7a7268',
+  motorway: '#f3d88f',    // soft gold, like the highway color on a printed city map
+  motorwayCase: '#c9a24c',
+  major: '#ffffff',
+  majorCase: '#b8b2a8',
+  minor: '#ffffff',
+  minorCase: '#cdc7bd',
+  local: '#ffffff',
+  localCase: '#dcd6cc',
+  path: '#c9c2b6',
+  rail: '#9b948b',
+  building: '#ddd8cf',
+  label: '#3b3a36',
+  labelSoft: '#6d6a63',
+  halo: 'rgba(255,255,255,0.9)',
+  landmark: '#a5525f',    // dusty rose, from the same printed-map palette
 };
 
-// Sequential ramps, light to dark, six classes each.
+// Sequential ramps, light to dark, six classes each. ColorBrewer (Cynthia Brewer, Penn State):
+// light, perceptually ordered and colorblind-safe.
 export const RAMP = {
-  brick: ['#fbeadb', '#f4c7a1', '#e79a6e', '#c96a43', '#9b4327', '#5f2412'],  // buildings
-  teal: ['#e2f1ee', '#b3dad3', '#7cbcb3', '#479a92', '#22746e', '#0b4b47'],   // transit access
-  plum: ['#f6e6f0', '#e6bcd6', '#cf8bb8', '#ad5b98', '#823777', '#511a4f'],   // overstatement
-  slate: ['#e8edf2', '#c3cfdc', '#93a8c0', '#6481a2', '#3d5d82', '#1f3a5a'],  // street network
+  brick: ['#ffffd4', '#fee391', '#fec44f', '#fe9929', '#d95f0e', '#993404'],  // YlOrBr: buildings
+  teal: ['#f0f9e8', '#ccebc5', '#a8ddb5', '#7bccc4', '#43a2ca', '#0868ac'],   // GnBu: transit access
+  plum: ['#feebe2', '#fcc5c0', '#fa9fb5', '#f768a1', '#c51b8a', '#7a0177'],   // RdPu: overstatement
+  slate: ['#f1eef6', '#d0d1e6', '#a6bddb', '#74a9cf', '#2b8cbe', '#045a8d'],  // PuBu: street network
 };
 
 export const FLOOD = {
@@ -37,7 +52,7 @@ export const FLOOD_DARK = {
   levee: '#6b4c8c',
 };
 
-export const ISO ={ 5: '#4b2e83', 10: '#8466b5', 15: '#c4b2e0' };
+export const ISO = { 5: '#54278f', 10: '#807dba', 15: '#bcbddc' };  // ColorBrewer Purples
 
 export const QC = {
   dead_end: '#d48a3a',
